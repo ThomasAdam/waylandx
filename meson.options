@@ -1,0 +1,1 @@
+option('egl', type: 'feature', value: 'disabled', description: 'Enable EGL support')
