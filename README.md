@@ -28,9 +28,29 @@ meson setup build
 meson compile -C build
 ```
 
+After which it can be installed:
+
+```
+meson install -C build
+```
+
+... and the binary:
+
+```
+waylandx
+```
+
+can be run.  This should be done on top of an existing X11 session.  Assuming
+this program doesn't crash, it will then allow you to run wayland
+applications, such as `foot`, as a native X11 application.`
+
 ***Be sure to configure your system so that idle inhibition is reported
 correctly.  For more details, see the description of the
 idleInhibitCommand resource in the manual page.***
+
+
+
+## About / Info
 
 This is a tool for running Wayland applications on an X server,
 preferably with a compositing manager running.
