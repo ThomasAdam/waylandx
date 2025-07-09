@@ -7,7 +7,7 @@ THIS IS A FORK OF THE FOLLOWING PROJECT:
 
 https://sourceforge.net/projects/twelveto11/
 
-I will be making changes, but for now, wanting to mirror it here, primarily s
+I will be making changes, but for now, wanting to mirror it here, primarily so
 I don't have to use SVN.
 
 -- Thomas Adam, 2025-06-29
@@ -15,6 +15,10 @@ I don't have to use SVN.
 
 Heed the above.  This not my project originally, but I've decided to see how
 far I can support it.
+
+# Support / Chat
+
+There's an IRC channel on `irc.librea.chat` in `#waylandx`.
 
 ## Original README
 
