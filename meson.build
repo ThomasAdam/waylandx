@@ -84,8 +84,6 @@ add_project_arguments([
 
 prefix = get_option('prefix')
 
-inc_dirs_drm = include_directories('/usr/include/drm')
-
 # Sources
 waylandx_sources = [
   '12to11.c',
@@ -192,6 +190,21 @@ foreach rd : mandatory_deps
   this = dependency(rd, required: true)
   summary_dep_found += {rd: this}
   mandatory_deps_found += this
+
+  if rd == 'libdrm'
+    pc = run_command(
+      'pkg-config',
+      '--cflags-only-I',
+      rd,
+      capture: true,
+      check: true,
+    )
+
+    # In libdrm's case, there's only one.
+    path = pc.stdout().strip().split()[0]
+    drm_dir = path.replace('-I', '')
+    inc_dirs_drm = include_directories(drm_dir)
+  endif
 endforeach
 
 thread_dep = dependency('threads', required: true)
@@ -306,7 +319,7 @@ waylandx_cust_targets += [transfer_atoms_h]
 
 drm_modifiers_h = custom_target(
   'drm_modifiers_h',
-  input: ['meson-scripts/modifiers.awk', '/usr/include/drm/drm_fourcc.h'],
+  input: ['meson-scripts/modifiers.awk', '@0@/drm_fourcc.h'.format(drm_dir)],
   output: 'drm_modifiers.h',
   command: ['awk', '-f', '@INPUT0@', '@INPUT1@'],
   capture: true
