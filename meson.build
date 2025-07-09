@@ -1,7 +1,7 @@
 project('waylandx',
   'c',
   version : '0.1',
-  meson_version: '>=1.6.0', # Wayland module.
+  meson_version: '>=1.5.1', # Wayland module.
   license: 'GPL-3.0-or-later',
   default_options : [
     'c_std=c99',
