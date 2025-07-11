@@ -24,52 +24,45 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 static struct wl_global *decoration_manager_global;
 
 static void
-Destroy (struct wl_client *client, struct wl_resource *resource)
+Destroy(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
 static void
-GetToplevelDecoration (struct wl_client *client, struct wl_resource *resource,
-		       uint32_t id, struct wl_resource *toplevel_resource)
+GetToplevelDecoration(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id, struct wl_resource *toplevel_resource)
 {
-  XdgRoleImplementation *impl;
+	XdgRoleImplementation *impl;
 
-  impl = wl_resource_get_user_data (toplevel_resource);
-  XLXdgToplevelGetDecoration (impl, resource, id);
+	impl = wl_resource_get_user_data(toplevel_resource);
+	XLXdgToplevelGetDecoration(impl, resource, id);
 }
 
-static const struct zxdg_decoration_manager_v1_interface manager_impl =
-  {
-    .destroy = Destroy,
-    .get_toplevel_decoration = GetToplevelDecoration,
-  };
+static const struct zxdg_decoration_manager_v1_interface manager_impl = {
+	.destroy		 = Destroy,
+	.get_toplevel_decoration = GetToplevelDecoration,
+};
 
 static void
-HandleBind (struct wl_client *client, void *data, uint32_t version,
-	    uint32_t id)
+HandleBind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-  struct wl_resource *resource;
+	struct wl_resource *resource;
 
-  resource
-    = wl_resource_create (client,
-			  &zxdg_decoration_manager_v1_interface,
-			  version, id);
+	resource = wl_resource_create(client,
+	    &zxdg_decoration_manager_v1_interface, version, id);
 
-  if (!resource)
-    {
-      wl_client_post_no_memory (client);
-      return;
-    }
+	if (!resource) {
+		wl_client_post_no_memory(client);
+		return;
+	}
 
-  wl_resource_set_implementation (resource, &manager_impl, NULL, NULL);
+	wl_resource_set_implementation(resource, &manager_impl, NULL, NULL);
 }
 
 void
-XLInitDecoration (void)
+XLInitDecoration(void)
 {
-  decoration_manager_global
-    = wl_global_create (compositor.wl_display,
-			&zxdg_decoration_manager_v1_interface,
-			1, NULL, HandleBind);
+	decoration_manager_global = wl_global_create(compositor.wl_display,
+	    &zxdg_decoration_manager_v1_interface, 1, NULL, HandleBind);
 }

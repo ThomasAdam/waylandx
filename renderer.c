@@ -27,19 +27,18 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 typedef struct _Renderer Renderer;
 
-struct _Renderer
-{
-  /* The next renderer in the chain of available renderers.  */
-  Renderer *next;
+struct _Renderer {
+	/* The next renderer in the chain of available renderers.  */
+	Renderer *next;
 
-  /* The name of this renderer.  */
-  const char *name;
+	/* The name of this renderer.  */
+	const char *name;
 
-  /* Set of buffer manipulation functions.  */
-  BufferFuncs *buffer_funcs;
+	/* Set of buffer manipulation functions.  */
+	BufferFuncs *buffer_funcs;
 
-  /* Set of rendering manipulation functions.  */
-  RenderFuncs *render_funcs;
+	/* Set of rendering manipulation functions.  */
+	RenderFuncs *render_funcs;
 };
 
 /* Chain of all renderers.  */
@@ -55,467 +54,458 @@ static RenderFuncs render_funcs;
 int renderer_flags;
 
 static Renderer *
-AllocateRenderer (void)
+AllocateRenderer(void)
 {
-  static Renderer renderers[2];
-  static int used;
+	static Renderer renderers[2];
+	static int	used;
 
-  if (used < ArrayElements (renderers))
-    return &renderers[used++];
+	if (used < ArrayElements(renderers))
+		return &renderers[used++];
 
-  /* When adding a new renderer, make sure to update the number of
-     renderers in the above array.  */
-  abort ();
+	/* When adding a new renderer, make sure to update the number of
+	   renderers in the above array.  */
+	abort();
 }
 
 RenderTarget
-RenderTargetFromWindow (Window window, unsigned long standard_event_mask)
+RenderTargetFromWindow(Window window, unsigned long standard_event_mask)
 {
-  return render_funcs.target_from_window (window, standard_event_mask);
+	return render_funcs.target_from_window(window, standard_event_mask);
 }
 
 RenderTarget
-RenderTargetFromPixmap (Pixmap pixmap)
+RenderTargetFromPixmap(Pixmap pixmap)
 {
-  return render_funcs.target_from_pixmap (pixmap);
+	return render_funcs.target_from_pixmap(pixmap);
 }
 
 Bool
-RenderSetRenderMode (RenderTarget target, RenderMode mode,
-		     uint64_t target_msc)
+RenderSetRenderMode(RenderTarget target, RenderMode mode, uint64_t target_msc)
 {
-  if (!render_funcs.set_render_mode)
-    return False;
+	if (!render_funcs.set_render_mode)
+		return False;
 
-  return render_funcs.set_render_mode (target, mode, target_msc);
+	return render_funcs.set_render_mode(target, mode, target_msc);
 }
 
 void
-RenderSetClient (RenderTarget target, struct wl_client *client)
+RenderSetClient(RenderTarget target, struct wl_client *client)
 {
-  if (!render_funcs.set_client)
-    return;
+	if (!render_funcs.set_client)
+		return;
 
-  render_funcs.set_client (target, client);
+	render_funcs.set_client(target, client);
 }
 
 void
-RenderSetStandardEventMask (RenderTarget target,
-			    unsigned long standard_event_mask)
+RenderSetStandardEventMask(RenderTarget target,
+    unsigned long			standard_event_mask)
 {
-  render_funcs.set_standard_event_mask (target, standard_event_mask);
+	render_funcs.set_standard_event_mask(target, standard_event_mask);
 }
 
 void
-RenderNoteTargetSize (RenderTarget target, int width, int height)
+RenderNoteTargetSize(RenderTarget target, int width, int height)
 {
-  if (!render_funcs.note_target_size)
-    /* This function can be NULL.  */
-    return;
+	if (!render_funcs.note_target_size)
+		/* This function can be NULL.  */
+		return;
 
-  render_funcs.note_target_size (target, width, height);
+	render_funcs.note_target_size(target, width, height);
 }
 
 Picture
-RenderPictureFromTarget (RenderTarget target)
+RenderPictureFromTarget(RenderTarget target)
 {
-  return render_funcs.picture_from_target (target);
+	return render_funcs.picture_from_target(target);
 }
 
 void
-RenderFreePictureFromTarget (Picture picture)
+RenderFreePictureFromTarget(Picture picture)
 {
-  render_funcs.free_picture_from_target (picture);
+	render_funcs.free_picture_from_target(picture);
 }
 
 void
-RenderDestroyRenderTarget (RenderTarget target)
+RenderDestroyRenderTarget(RenderTarget target)
 {
-  render_funcs.destroy_render_target (target);
+	render_funcs.destroy_render_target(target);
 }
 
 void
-RenderStartRender (RenderTarget target)
+RenderStartRender(RenderTarget target)
 {
-  if (render_funcs.start_render)
-    render_funcs.start_render (target);
+	if (render_funcs.start_render)
+		render_funcs.start_render(target);
 }
 
 void
-RenderFillBoxesWithTransparency (RenderTarget target, pixman_box32_t *boxes,
-				 int nboxes, int min_x, int min_y)
+RenderFillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
+    int nboxes, int min_x, int min_y)
 {
-  render_funcs.fill_boxes_with_transparency (target, boxes,
-					     nboxes, min_x, min_y);
+	render_funcs.fill_boxes_with_transparency(target, boxes, nboxes, min_x,
+	    min_y);
 }
 
 void
-RenderClearRectangle (RenderTarget target, int x, int y, int width, int height)
+RenderClearRectangle(RenderTarget target, int x, int y, int width, int height)
 {
-  render_funcs.clear_rectangle (target, x, y, width, height);
+	render_funcs.clear_rectangle(target, x, y, width, height);
 }
 
 void
-RenderComposite (RenderBuffer source, RenderTarget target, Operation op,
-		 int src_x, int src_y, int x, int y, int width, int height,
-		 DrawParams *draw_params)
+RenderComposite(RenderBuffer source, RenderTarget target, Operation op,
+    int src_x, int src_y, int x, int y, int width, int height,
+    DrawParams *draw_params)
 {
-  render_funcs.composite (source, target, op, src_x, src_y, x, y,
-			  width, height, draw_params);
+	render_funcs.composite(source, target, op, src_x, src_y, x, y, width,
+	    height, draw_params);
 }
 
 RenderCompletionKey
-RenderFinishRender (RenderTarget target, pixman_region32_t *damage,
-		    RenderCompletionFunc function, void *data)
+RenderFinishRender(RenderTarget target, pixman_region32_t *damage,
+    RenderCompletionFunc function, void *data)
 {
-  if (render_funcs.finish_render)
-    return render_funcs.finish_render (target, damage, function, data);
+	if (render_funcs.finish_render)
+		return render_funcs.finish_render(target, damage, function,
+		    data);
 
-  return NULL;
+	return NULL;
 }
 
 void
-RenderCancelCompletionCallback (RenderCompletionKey key)
+RenderCancelCompletionCallback(RenderCompletionKey key)
 {
-  return render_funcs.cancel_completion_callback (key);
+	return render_funcs.cancel_completion_callback(key);
 }
 
 int
-RenderTargetAge (RenderTarget target)
+RenderTargetAge(RenderTarget target)
 {
-  return render_funcs.target_age (target);
+	return render_funcs.target_age(target);
 }
 
 RenderFence
-RenderImportFdFence (int fd, Bool *error)
+RenderImportFdFence(int fd, Bool *error)
 {
-  /* Fence-related functions must be defined if
-     SupportExplicitSync is in flags.  */
-  return render_funcs.import_fd_fence (fd, error);
+	/* Fence-related functions must be defined if
+	   SupportExplicitSync is in flags.  */
+	return render_funcs.import_fd_fence(fd, error);
 }
 
 void
-RenderWaitFence (RenderFence fence)
+RenderWaitFence(RenderFence fence)
 {
-  return render_funcs.wait_fence (fence);
+	return render_funcs.wait_fence(fence);
 }
 
 void
-RenderDeleteFence (RenderFence fence)
+RenderDeleteFence(RenderFence fence)
 {
-  return render_funcs.delete_fence (fence);
+	return render_funcs.delete_fence(fence);
 }
 
 int
-RenderGetFinishFence (Bool *error)
+RenderGetFinishFence(Bool *error)
 {
-  return render_funcs.get_finish_fence (error);
+	return render_funcs.get_finish_fence(error);
 }
 
 PresentCompletionKey
-RenderPresentToWindow (RenderTarget target, RenderBuffer source,
-		       pixman_region32_t *damage,
-		       PresentCompletionFunc callback, void *data)
+RenderPresentToWindow(RenderTarget target, RenderBuffer source,
+    pixman_region32_t *damage, PresentCompletionFunc callback, void *data)
 {
-  if (!render_funcs.present_to_window)
-    return NULL;
+	if (!render_funcs.present_to_window)
+		return NULL;
 
-  return render_funcs.present_to_window (target, source,
-					 damage, callback,
-					 data);
+	return render_funcs.present_to_window(target, source, damage, callback,
+	    data);
 }
 
 RenderCompletionKey
-RenderNotifyMsc (RenderTarget target, RenderCompletionFunc callback,
-		 void *data)
+RenderNotifyMsc(RenderTarget target, RenderCompletionFunc callback, void *data)
 {
-  if (!render_funcs.notify_msc)
-    return NULL;
+	if (!render_funcs.notify_msc)
+		return NULL;
 
-  return render_funcs.notify_msc (target, callback, data);
+	return render_funcs.notify_msc(target, callback, data);
 }
 
 void
-RenderCancelPresentationCallback (PresentCompletionKey key)
+RenderCancelPresentationCallback(PresentCompletionKey key)
 {
-  if (!render_funcs.cancel_presentation_callback)
-    return;
+	if (!render_funcs.cancel_presentation_callback)
+		return;
 
-  render_funcs.cancel_presentation_callback (key);
+	render_funcs.cancel_presentation_callback(key);
 }
 
 DrmFormat *
-RenderGetDrmFormats (int *n_formats)
+RenderGetDrmFormats(int *n_formats)
 {
-  return buffer_funcs.get_drm_formats (n_formats);
+	return buffer_funcs.get_drm_formats(n_formats);
 }
 
 dev_t *
-RenderGetRenderDevices (int *num_devices)
+RenderGetRenderDevices(int *num_devices)
 {
-  return buffer_funcs.get_render_devices (num_devices);
+	return buffer_funcs.get_render_devices(num_devices);
 }
 
 ShmFormat *
-RenderGetShmFormats (int *n_formats)
+RenderGetShmFormats(int *n_formats)
 {
-  return buffer_funcs.get_shm_formats (n_formats);
+	return buffer_funcs.get_shm_formats(n_formats);
 }
 
 RenderBuffer
-RenderBufferFromDmaBuf (DmaBufAttributes *attributes, Bool *error)
+RenderBufferFromDmaBuf(DmaBufAttributes *attributes, Bool *error)
 {
-  return buffer_funcs.buffer_from_dma_buf (attributes, error);
+	return buffer_funcs.buffer_from_dma_buf(attributes, error);
 }
 
 void
-RenderBufferFromDmaBufAsync (DmaBufAttributes *attributes,
-			     DmaBufSuccessFunc success_func,
-			     DmaBufFailureFunc failure_func,
-			     void *callback_data)
+RenderBufferFromDmaBufAsync(DmaBufAttributes *attributes,
+    DmaBufSuccessFunc success_func, DmaBufFailureFunc failure_func,
+    void *callback_data)
 {
-  return buffer_funcs.buffer_from_dma_buf_async (attributes,
-						 success_func,
-						 failure_func,
-						 callback_data);
+	return buffer_funcs.buffer_from_dma_buf_async(attributes, success_func,
+	    failure_func, callback_data);
 }
 
 RenderBuffer
-RenderBufferFromShm (SharedMemoryAttributes *attributes, Bool *error)
+RenderBufferFromShm(SharedMemoryAttributes *attributes, Bool *error)
 {
-  return buffer_funcs.buffer_from_shm (attributes, error);
+	return buffer_funcs.buffer_from_shm(attributes, error);
 }
 
 Bool
-RenderValidateShmParams (uint32_t format, uint32_t width, uint32_t height,
-			 int32_t offset, int32_t stride, size_t pool_size)
+RenderValidateShmParams(uint32_t format, uint32_t width, uint32_t height,
+    int32_t offset, int32_t stride, size_t pool_size)
 {
-  return buffer_funcs.validate_shm_params (format, width, height,
-					   offset, stride, pool_size);
+	return buffer_funcs.validate_shm_params(format, width, height, offset,
+	    stride, pool_size);
 }
 
 RenderBuffer
-RenderBufferFromSinglePixel (uint32_t red, uint32_t green, uint32_t blue,
-			     uint32_t alpha, Bool *error)
+RenderBufferFromSinglePixel(uint32_t red, uint32_t green, uint32_t blue,
+    uint32_t alpha, Bool *error)
 {
-  return buffer_funcs.buffer_from_single_pixel (red, green, blue,
-						alpha, error);
+	return buffer_funcs.buffer_from_single_pixel(red, green, blue, alpha,
+	    error);
 }
 
 void
-RenderFreeShmBuffer (RenderBuffer buffer)
+RenderFreeShmBuffer(RenderBuffer buffer)
 {
-  return buffer_funcs.free_shm_buffer (buffer);
+	return buffer_funcs.free_shm_buffer(buffer);
 }
 
 void
-RenderFreeDmabufBuffer (RenderBuffer buffer)
+RenderFreeDmabufBuffer(RenderBuffer buffer)
 {
-  return buffer_funcs.free_dmabuf_buffer (buffer);
+	return buffer_funcs.free_dmabuf_buffer(buffer);
 }
 
 void
-RenderFreeSinglePixelBuffer (RenderBuffer buffer)
+RenderFreeSinglePixelBuffer(RenderBuffer buffer)
 {
-  return buffer_funcs.free_dmabuf_buffer (buffer);
+	return buffer_funcs.free_dmabuf_buffer(buffer);
 }
 
 void
-RenderUpdateBufferForDamage (RenderBuffer buffer, pixman_region32_t *damage,
-			     DrawParams *params)
+RenderUpdateBufferForDamage(RenderBuffer buffer, pixman_region32_t *damage,
+    DrawParams *params)
 {
-  if (!buffer_funcs.update_buffer_for_damage)
-    return;
+	if (!buffer_funcs.update_buffer_for_damage)
+		return;
 
-  buffer_funcs.update_buffer_for_damage (buffer, damage, params);
+	buffer_funcs.update_buffer_for_damage(buffer, damage, params);
 }
 
 Bool
-RenderCanReleaseNow (RenderBuffer buffer)
+RenderCanReleaseNow(RenderBuffer buffer)
 {
-  return buffer_funcs.can_release_now (buffer);
+	return buffer_funcs.can_release_now(buffer);
 }
 
 IdleCallbackKey
-RenderAddIdleCallback (RenderBuffer buffer, RenderTarget target,
-		       BufferIdleFunc function, void *data)
+RenderAddIdleCallback(RenderBuffer buffer, RenderTarget target,
+    BufferIdleFunc function, void *data)
 {
-  return buffer_funcs.add_idle_callback (buffer, target, function, data);
+	return buffer_funcs.add_idle_callback(buffer, target, function, data);
 }
 
 void
-RenderCancelIdleCallback (IdleCallbackKey key)
+RenderCancelIdleCallback(IdleCallbackKey key)
 {
-  return buffer_funcs.cancel_idle_callback (key);
+	return buffer_funcs.cancel_idle_callback(key);
 }
 
 Bool
-RenderIsBufferIdle (RenderBuffer buffer, RenderTarget target)
+RenderIsBufferIdle(RenderBuffer buffer, RenderTarget target)
 {
-  return buffer_funcs.is_buffer_idle (buffer, target);
+	return buffer_funcs.is_buffer_idle(buffer, target);
 }
 
 void
-RenderWaitForIdle (RenderBuffer buffer, RenderTarget target)
+RenderWaitForIdle(RenderBuffer buffer, RenderTarget target)
 {
-  if (!buffer_funcs.wait_for_idle)
-    return;
+	if (!buffer_funcs.wait_for_idle)
+		return;
 
-  buffer_funcs.wait_for_idle (buffer, target);
+	buffer_funcs.wait_for_idle(buffer, target);
 }
 
 void
-RenderSetNeedWaitForIdle (RenderTarget target)
+RenderSetNeedWaitForIdle(RenderTarget target)
 {
-  if (!buffer_funcs.set_need_wait_for_idle)
-    return;
+	if (!buffer_funcs.set_need_wait_for_idle)
+		return;
 
-  buffer_funcs.set_need_wait_for_idle (target);
+	buffer_funcs.set_need_wait_for_idle(target);
 }
 
 Bool
-RenderIsBufferOpaque (RenderBuffer buffer)
+RenderIsBufferOpaque(RenderBuffer buffer)
 {
-  return buffer_funcs.is_buffer_opaque (buffer);
+	return buffer_funcs.is_buffer_opaque(buffer);
 }
 
 void
-RegisterStaticRenderer (const char *name,
-			RenderFuncs *render_funcs,
-			BufferFuncs *buffer_funcs)
+RegisterStaticRenderer(const char *name, RenderFuncs *render_funcs,
+    BufferFuncs *buffer_funcs)
 {
-  Renderer *renderer;
+	Renderer *renderer;
 
-  renderer = AllocateRenderer ();
-  renderer->next = renderers;
-  renderer->buffer_funcs = buffer_funcs;
-  renderer->render_funcs = render_funcs;
-  renderer->name = name;
+	renderer	       = AllocateRenderer();
+	renderer->next	       = renderers;
+	renderer->buffer_funcs = buffer_funcs;
+	renderer->render_funcs = render_funcs;
+	renderer->name	       = name;
 
-  renderers = renderer;
+	renderers = renderer;
 }
 
 static Bool
-InstallRenderer (Renderer *renderer)
+InstallRenderer(Renderer *renderer)
 {
-  buffer_funcs = *renderer->buffer_funcs;
-  render_funcs = *renderer->render_funcs;
+	buffer_funcs = *renderer->buffer_funcs;
+	render_funcs = *renderer->render_funcs;
 
-  /* Now, initialize the renderer by calling its init functions.  */
+	/* Now, initialize the renderer by calling its init functions.  */
 
-  if (!render_funcs.init_render_funcs ())
-    /* If this returns false, then the renderer cannot be used.  */
-    return False;
+	if (!render_funcs.init_render_funcs())
+		/* If this returns false, then the renderer cannot be used.  */
+		return False;
 
-  /* Next, initialize the colormap before init_buffer_funcs.  */
-  compositor.colormap
-    = XCreateColormap (compositor.display,
-		       DefaultRootWindow (compositor.display),
-		       compositor.visual, AllocNone);
+	/* Next, initialize the colormap before init_buffer_funcs.  */
+	compositor.colormap = XCreateColormap(compositor.display,
+	    DefaultRootWindow(compositor.display), compositor.visual,
+	    AllocNone);
 
-  buffer_funcs.init_buffer_funcs ();
+	buffer_funcs.init_buffer_funcs();
 
-  /* Finally, set the flags.  The idea is that init_render_funcs
-     and/or init_buffer_funcs might change this, so we set them from
-     renderer->render_funcs.  */
-  renderer_flags = renderer->render_funcs->flags;
+	/* Finally, set the flags.  The idea is that init_render_funcs
+	   and/or init_buffer_funcs might change this, so we set them from
+	   renderer->render_funcs.  */
+	renderer_flags = renderer->render_funcs->flags;
 
-  return True;
+	return True;
 }
 
 static const char *
-ReadRendererResource (void)
+ReadRendererResource(void)
 {
-  XrmDatabase rdb;
-  XrmName namelist[3];
-  XrmClass classlist[3];
-  XrmValue value;
-  XrmRepresentation type;
+	XrmDatabase	  rdb;
+	XrmName		  namelist[3];
+	XrmClass	  classlist[3];
+	XrmValue	  value;
+	XrmRepresentation type;
 
-  rdb = XrmGetDatabase (compositor.display);
+	rdb = XrmGetDatabase(compositor.display);
 
-  if (!rdb)
-    return NULL;
+	if (!rdb)
+		return NULL;
 
-  namelist[1] = XrmStringToQuark ("renderer");
-  namelist[0] = app_quark;
-  namelist[2] = NULLQUARK;
+	namelist[1] = XrmStringToQuark("renderer");
+	namelist[0] = app_quark;
+	namelist[2] = NULLQUARK;
 
-  classlist[1] = XrmStringToQuark ("Renderer");
-  classlist[0] = resource_quark;
-  classlist[2] = NULLQUARK;
+	classlist[1] = XrmStringToQuark("Renderer");
+	classlist[0] = resource_quark;
+	classlist[2] = NULLQUARK;
 
-  if (XrmQGetResource (rdb, namelist, classlist,
-		       &type, &value)
-      && type == QString)
-    return (const char *) value.addr;
+	if (XrmQGetResource(rdb, namelist, classlist, &type, &value) &&
+	    type == QString)
+		return (const char *)value.addr;
 
-  return NULL;
+	return NULL;
 }
 
 static void
-PickRenderer (void)
+PickRenderer(void)
 {
-  const char *selected;
-  Renderer *renderer;
+	const char *selected;
+	Renderer   *renderer;
 
-  /* Install and initialize the first renderer in the list.  */
-  XLAssert (renderers != NULL);
+	/* Install and initialize the first renderer in the list.  */
+	XLAssert(renderers != NULL);
 
-  selected = getenv ("RENDERER");
+	selected = getenv("RENDERER");
 
-  if (!selected)
-    selected = ReadRendererResource ();
+	if (!selected)
+		selected = ReadRendererResource();
 
-  if (selected)
-    {
-      /* If selected is "help", print each renderer and exit.  */
-      if (!strcmp (selected, "help"))
-	{
-	  fprintf (stderr, "The following rendering backends can be used:\n");
+	if (selected) {
+		/* If selected is "help", print each renderer and exit.  */
+		if (!strcmp(selected, "help")) {
+			fprintf(stderr,
+			    "The following rendering backends can be used:\n");
 
-	  for (renderer = renderers; renderer; renderer = renderer->next)
-	    fprintf (stderr, "    %s\n", renderer->name);
+			for (renderer = renderers; renderer;
+			    renderer  = renderer->next)
+				 fprintf(stderr, "    %s\n", renderer->name);
 
-	  exit (0);
-	}
-
-      /* Otherwise, look for a renderer matching the given name and
-	 install it.  */
-      for (renderer = renderers; renderer; renderer = renderer->next)
-	{
-	  if (!strcmp (renderer->name, selected))
-	    {
-	      if (!InstallRenderer (renderer))
-		{
-		  fprintf (stderr, "Failed to initialize renderer %s, "
-			   "defaulting to %s instead.\n", selected,
-			   renderers->name);
-		  goto fall_back;
+			exit(0);
 		}
 
-	      return;
-	    }
+		/* Otherwise, look for a renderer matching the given name and
+		   install it.  */
+		for (renderer = renderers; renderer;
+		    renderer  = renderer->next) {
+			if (!strcmp(renderer->name, selected)) {
+				if (!InstallRenderer(renderer)) {
+					fprintf(stderr,
+					    "Failed to initialize renderer %s, "
+					    "defaulting to %s instead.\n",
+					    selected, renderers->name);
+					goto fall_back;
+				}
+
+				return;
+			}
+		}
+
+		/* Fall back to the default renderer.  */
+		fprintf(stderr,
+		    "Defaulting to renderer %s, as %s was not found\n",
+		    renderers->name, selected);
 	}
 
-      /* Fall back to the default renderer.  */
-      fprintf (stderr, "Defaulting to renderer %s, as %s was not found\n",
-	       renderers->name, selected);
-    }
+fall_back:
 
- fall_back:
-
-  if (!InstallRenderer (renderers))
-    abort ();
+	if (!InstallRenderer(renderers))
+		abort();
 }
 
 void
-InitRenderers (void)
+InitRenderers(void)
 {
 #ifdef HaveEglSupport
-  InitEgl ();
+	InitEgl();
 #endif
-  InitPictureRenderer ();
+	InitPictureRenderer();
 
-  PickRenderer ();
+	PickRenderer();
 }

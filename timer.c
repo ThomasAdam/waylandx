@@ -25,244 +25,228 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 /* Linked list of all timers.  */
 static Timer all_timers;
 
-struct _Timer
-{
-  /* The next and last timers in this list.  */
-  Timer *next, *last;
+struct _Timer {
+	/* The next and last timers in this list.  */
+	Timer *next, *last;
 
-  /* The repeat of this timer.  */
-  struct timespec repeat;
+	/* The repeat of this timer.  */
+	struct timespec repeat;
 
-  /* The next time this timer should be run.  */
-  struct timespec next_time;
+	/* The next time this timer should be run.  */
+	struct timespec next_time;
 
-  /* The function that should be called when the timer is run.  */
-  void (*function) (Timer *, void *, struct timespec);
+	/* The function that should be called when the timer is run.  */
+	void (*function)(Timer *, void *, struct timespec);
 
-  /* User data associated with the timer.  */
-  void *timer_data;
+	/* User data associated with the timer.  */
+	void *timer_data;
 };
 
 struct timespec
-CurrentTimespec (void)
+CurrentTimespec(void)
 {
-  struct timespec timespec;
+	struct timespec timespec;
 
-  clock_gettime (CLOCK_MONOTONIC, &timespec);
-  return timespec;
+	clock_gettime(CLOCK_MONOTONIC, &timespec);
+	return timespec;
 }
 
 struct timespec
-MakeTimespec (time_t s, long int ns)
+MakeTimespec(time_t s, long int ns)
 {
-  struct timespec r;
+	struct timespec r;
 
-  r.tv_sec = s;
-  r.tv_nsec = ns;
+	r.tv_sec  = s;
+	r.tv_nsec = ns;
 
-  return r;
+	return r;
 }
 
 int
-TimespecCmp (struct timespec a, struct timespec b)
+TimespecCmp(struct timespec a, struct timespec b)
 {
-  return (2 * SafeCmp (a.tv_sec, b.tv_sec)
-	  + SafeCmp (a.tv_nsec, b.tv_nsec));
+	return (
+	    2 * SafeCmp(a.tv_sec, b.tv_sec) + SafeCmp(a.tv_nsec, b.tv_nsec));
 }
 
 struct timespec
-TimespecAdd (struct timespec a, struct timespec b)
+TimespecAdd(struct timespec a, struct timespec b)
 {
-  time_t rs, bs, bs1;
-  int ns, nsd, rns;
+	time_t rs, bs, bs1;
+	int    ns, nsd, rns;
 
-  rs = a.tv_sec;
-  bs = b.tv_sec;
-  ns = a.tv_nsec + b.tv_nsec;
-  nsd = ns - 1000000000;
-  rns = ns;
+	rs  = a.tv_sec;
+	bs  = b.tv_sec;
+	ns  = a.tv_nsec + b.tv_nsec;
+	nsd = ns - 1000000000;
+	rns = ns;
 
-  if (0 < nsd)
-    {
-      rns = nsd;
+	if (0 < nsd) {
+		rns = nsd;
 
-      if (!IntAddWrapv (bs, 1, &bs1))
-	bs = bs1;
-      else if (rs < 0)
-	rs++;
-      else
-	goto high_overflow;
-    }
-
-  if (IntAddWrapv (rs, bs, &rs))
-    {
-      if (bs < 0)
-	{
-	  rs = TypeMinimum (time_t);
-	  rns = 0;
+		if (!IntAddWrapv(bs, 1, &bs1))
+			bs = bs1;
+		else if (rs < 0)
+			rs++;
+		else
+			goto high_overflow;
 	}
-      else
-	{
-	high_overflow:
-	  rs = TypeMaximum (time_t);
-	  rns = 1000000000 - 1;
-	}
-    }
 
-  return MakeTimespec (rs, rns);
+	if (IntAddWrapv(rs, bs, &rs)) {
+		if (bs < 0) {
+			rs  = TypeMinimum(time_t);
+			rns = 0;
+		} else {
+		high_overflow:
+			rs  = TypeMaximum(time_t);
+			rns = 1000000000 - 1;
+		}
+	}
+
+	return MakeTimespec(rs, rns);
 }
 
 struct timespec
-TimespecSub (struct timespec a, struct timespec b)
+TimespecSub(struct timespec a, struct timespec b)
 {
-  time_t rs, bs, bs1;
-  int ns, rns;
+	time_t rs, bs, bs1;
+	int    ns, rns;
 
-  rs = a.tv_sec;
-  bs = b.tv_sec;
-  ns = a.tv_nsec - b.tv_nsec;
-  rns = ns;
+	rs  = a.tv_sec;
+	bs  = b.tv_sec;
+	ns  = a.tv_nsec - b.tv_nsec;
+	rns = ns;
 
-  if (ns < 0)
-    {
-      rns = ns + 1000000000;
-      if (!IntAddWrapv (bs, 1, &bs1))
-	bs = bs1;
-      else if (- TypeIsSigned (time_t) < rs)
-	rs--;
-      else
-	goto low_overflow;
-    }
-
-  if (IntSubtractWrapv (rs, bs, &rs))
-    {
-      if (0 < bs)
-	{
-	low_overflow:
-	  rs = TypeMinimum (time_t);
-	  rns = 0;
+	if (ns < 0) {
+		rns = ns + 1000000000;
+		if (!IntAddWrapv(bs, 1, &bs1))
+			bs = bs1;
+		else if (-TypeIsSigned(time_t) < rs)
+			rs--;
+		else
+			goto low_overflow;
 	}
-      else
-	{
-	  rs = TypeMaximum (time_t);
-	  rns = 1000000000 - 1;
-	}
-    }
 
-  return MakeTimespec (rs, rns);
+	if (IntSubtractWrapv(rs, bs, &rs)) {
+		if (0 < bs) {
+		low_overflow:
+			rs  = TypeMinimum(time_t);
+			rns = 0;
+		} else {
+			rs  = TypeMaximum(time_t);
+			rns = 1000000000 - 1;
+		}
+	}
+
+	return MakeTimespec(rs, rns);
 }
 
 Timer *
-AddTimer (void (*function) (Timer *, void *, struct timespec),
-	  void *data, struct timespec delay)
+AddTimer(void (*function)(Timer *, void *, struct timespec), void *data,
+    struct timespec delay)
 {
-  Timer *timer;
+	Timer *timer;
 
-  timer = XLMalloc (sizeof *timer);
-  timer->function = function;
-  timer->timer_data = data;
-  timer->repeat = delay;
-  timer->next_time = TimespecAdd (CurrentTimespec (),
-				  delay);
+	timer		  = XLMalloc(sizeof *timer);
+	timer->function	  = function;
+	timer->timer_data = data;
+	timer->repeat	  = delay;
+	timer->next_time  = TimespecAdd(CurrentTimespec(), delay);
 
-  /* Chain the timer onto our list of timers.  */
-  timer->next = all_timers.next;
-  timer->last = &all_timers;
+	/* Chain the timer onto our list of timers.  */
+	timer->next = all_timers.next;
+	timer->last = &all_timers;
 
-  all_timers.next->last = timer;
-  all_timers.next = timer;
+	all_timers.next->last = timer;
+	all_timers.next	      = timer;
 
-  return timer;
+	return timer;
 }
 
 Timer *
-AddTimerWithBaseTime (void (*function) (Timer *, void *, struct timespec),
-		      void *data, struct timespec delay, struct timespec base)
+AddTimerWithBaseTime(void (*function)(Timer *, void *, struct timespec),
+    void *data, struct timespec delay, struct timespec base)
 {
-  Timer *timer;
+	Timer *timer;
 
-  timer = XLMalloc (sizeof *timer);
-  timer->function = function;
-  timer->timer_data = data;
-  timer->repeat = delay;
-  timer->next_time = TimespecAdd (base, delay);
+	timer		  = XLMalloc(sizeof *timer);
+	timer->function	  = function;
+	timer->timer_data = data;
+	timer->repeat	  = delay;
+	timer->next_time  = TimespecAdd(base, delay);
 
-  /* Chain the timer onto our list of timers.  */
-  timer->next = all_timers.next;
-  timer->last = &all_timers;
+	/* Chain the timer onto our list of timers.  */
+	timer->next = all_timers.next;
+	timer->last = &all_timers;
 
-  all_timers.next->last = timer;
-  all_timers.next = timer;
+	all_timers.next->last = timer;
+	all_timers.next	      = timer;
 
-  return timer;
+	return timer;
 }
 
 void
-RemoveTimer (Timer *timer)
+RemoveTimer(Timer *timer)
 {
-  /* Start by removing the timer from the list of timers.  This is
-     only safe inside a timer callback our outside TimerCheck.  */
-  timer->next->last = timer->last;
-  timer->last->next = timer->next;
+	/* Start by removing the timer from the list of timers.  This is
+	   only safe inside a timer callback our outside TimerCheck.  */
+	timer->next->last = timer->last;
+	timer->last->next = timer->next;
 
-  /* Then, free the timer.  */
-  XLFree (timer);
+	/* Then, free the timer.  */
+	XLFree(timer);
 }
 
 void
-RetimeTimer (Timer *timer)
+RetimeTimer(Timer *timer)
 {
-  timer->next_time = TimespecAdd (CurrentTimespec (),
-				  timer->repeat);
+	timer->next_time = TimespecAdd(CurrentTimespec(), timer->repeat);
 }
 
 struct timespec
-TimerCheck (void)
+TimerCheck(void)
 {
-  struct timespec now, wait, temp;
-  Timer *timer, *next;
-  Bool flag;
+	struct timespec now, wait, temp;
+	Timer	       *timer, *next;
+	Bool		flag;
 
-  now = CurrentTimespec ();
-  wait = MakeTimespec (TypeMaximum (time_t),
-		       1000000000 - 1);
-  timer = all_timers.next;
+	now   = CurrentTimespec();
+	wait  = MakeTimespec(TypeMaximum(time_t), 1000000000 - 1);
+	timer = all_timers.next;
 
-  while (timer != &all_timers)
-    {
-      /* Move the list forward first, so the timer callback can
-	 safely remove itself from the list.  */
-      next = timer->next;
-      flag = False;
+	while (timer != &all_timers) {
+		/* Move the list forward first, so the timer callback can
+		   safely remove itself from the list.  */
+		next = timer->next;
+		flag = False;
 
-      if (TimespecCmp (timer->next_time, now) <= 0)
-	{
-	  timer->next_time = TimespecAdd (timer->next_time,
-					  timer->repeat);
-	  flag = True;
+		if (TimespecCmp(timer->next_time, now) <= 0) {
+			timer->next_time = TimespecAdd(timer->next_time,
+			    timer->repeat);
+			flag		 = True;
+		}
+
+		temp = TimespecSub(timer->next_time, now);
+
+		if (TimespecCmp(temp, wait) < 0)
+			/* Wait is the time to wait until the next timer might
+			   fire.  */
+			wait = temp;
+
+		if (flag)
+			/* Run this function here instead, since it might remove
+			   the timer from the list.  */
+			timer->function(timer, timer->timer_data, now);
+
+		timer = next;
 	}
 
-      temp = TimespecSub (timer->next_time, now);
-
-      if (TimespecCmp (temp, wait) < 0)
-	/* Wait is the time to wait until the next timer might
-	   fire.  */
-	wait = temp;
-
-      if (flag)
-	/* Run this function here instead, since it might remove the
-	   timer from the list.  */
-	timer->function (timer, timer->timer_data, now);
-
-      timer = next;
-    }
-
-  return wait;
+	return wait;
 }
 
 void
-XLInitTimers (void)
+XLInitTimers(void)
 {
-  all_timers.next = &all_timers;
-  all_timers.last = &all_timers;
+	all_timers.next = &all_timers;
+	all_timers.last = &all_timers;
 }

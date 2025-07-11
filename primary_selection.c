@@ -24,60 +24,56 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "primary-selection-unstable-v1.h"
 
 typedef struct _PDataDevice PDataDevice;
-typedef struct _PDataOffer PDataOffer;
+typedef struct _PDataOffer  PDataOffer;
 
-enum
-  {
-    WasSentOffer = 1,
-  };
-
-struct _PDataDevice
-{
-  /* The seat associated with this data device.  */
-  Seat *seat;
-
-  /* The destroy callback associated with that seat.  */
-  void *seat_destroy_key;
-
-  /* Some flags.  */
-  int flags;
-
-  /* The wl_resource associated with this data device.  */
-  struct wl_resource *resource;
-
-  /* The next and last data devices.  */
-  PDataDevice *next, *last;
+enum {
+	WasSentOffer = 1,
 };
 
-struct _PDataOffer
-{
-  /* The data source associated with this offer.  */
-  PDataSource *source;
+struct _PDataDevice {
+	/* The seat associated with this data device.  */
+	Seat *seat;
 
-  /* The resource associated with this offer.  */
-  struct wl_resource *resource;
+	/* The destroy callback associated with that seat.  */
+	void *seat_destroy_key;
 
-  /* The next and last data offers associated with the data
-     source.  */
-  PDataOffer *next, *last;
+	/* Some flags.  */
+	int flags;
+
+	/* The wl_resource associated with this data device.  */
+	struct wl_resource *resource;
+
+	/* The next and last data devices.  */
+	PDataDevice *next, *last;
 };
 
-struct _PDataSource
-{
-  /* The wl_resource associated with this data source.  */
-  struct wl_resource *resource;
+struct _PDataOffer {
+	/* The data source associated with this offer.  */
+	PDataSource *source;
 
-  /* List of all data offers attached to this source.  */
-  PDataOffer offers;
+	/* The resource associated with this offer.  */
+	struct wl_resource *resource;
 
-  /* List of all MIME types provided by this source.  */
-  XLList *mime_types;
+	/* The next and last data offers associated with the data
+	   source.  */
+	PDataOffer *next, *last;
+};
 
-  /* List of atoms provided by this source.  */
-  XIDList *atom_types;
+struct _PDataSource {
+	/* The wl_resource associated with this data source.  */
+	struct wl_resource *resource;
 
-  /* Number of MIME types provided by this source.  */
-  int n_mime_types;
+	/* List of all data offers attached to this source.  */
+	PDataOffer offers;
+
+	/* List of all MIME types provided by this source.  */
+	XLList *mime_types;
+
+	/* List of atoms provided by this source.  */
+	XIDList *atom_types;
+
+	/* Number of MIME types provided by this source.  */
+	int n_mime_types;
 };
 
 /* The global primary selection manager.  */
@@ -105,693 +101,655 @@ static Timestamp foreign_selection_time;
 
 /* Forward declaration.  */
 
-static void NoticeChanged (void);
+static void NoticeChanged(void);
 
 /* Data offer implementation.  */
-
 
 static void
-Receive (struct wl_client *client, struct wl_resource *resource,
-	 const char *mime_type, int32_t fd)
+Receive(struct wl_client *client, struct wl_resource *resource,
+    const char *mime_type, int32_t fd)
 {
-  PDataOffer *offer;
+	PDataOffer *offer;
 
-  offer = wl_resource_get_user_data (resource);
+	offer = wl_resource_get_user_data(resource);
 
-  if (!offer)
-    {
-      /* This data offer is inert.  */
-      close (fd);
-      return;
-    }
+	if (!offer) {
+		/* This data offer is inert.  */
+		close(fd);
+		return;
+	}
 
-  zwp_primary_selection_source_v1_send_send (offer->source->resource,
-					     mime_type, fd);
-  close (fd);
+	zwp_primary_selection_source_v1_send_send(offer->source->resource,
+	    mime_type, fd);
+	close(fd);
 }
 
 static void
-DestroyOffer (struct wl_client *client, struct wl_resource *resource)
+DestroyOffer(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
-static struct zwp_primary_selection_offer_v1_interface offer_impl =
-  {
-    .receive = Receive,
-    .destroy = DestroyOffer,
-  };
+static struct zwp_primary_selection_offer_v1_interface offer_impl = {
+	.receive = Receive,
+	.destroy = DestroyOffer,
+};
 
 static void
-FreeDataOffer (PDataOffer *offer)
+FreeDataOffer(PDataOffer *offer)
 {
-  /* Mark this offer as invalid by setting the resource's user_data to
-     NULL.  */
-  if (offer->resource)
-    wl_resource_set_user_data (offer->resource, NULL);
+	/* Mark this offer as invalid by setting the resource's user_data to
+	   NULL.  */
+	if (offer->resource)
+		wl_resource_set_user_data(offer->resource, NULL);
 
-  /* Unlink the offer.  */
-  offer->last->next = offer->next;
-  offer->next->last = offer->last;
+	/* Unlink the offer.  */
+	offer->last->next = offer->next;
+	offer->next->last = offer->last;
 
-  /* Free the offer.  */
-  XLFree (offer);
+	/* Free the offer.  */
+	XLFree(offer);
 }
 
 static void
-HandleOfferResourceDestroy (struct wl_resource *resource)
+HandleOfferResourceDestroy(struct wl_resource *resource)
 {
-  PDataOffer *offer;
+	PDataOffer *offer;
 
-  offer = wl_resource_get_user_data (resource);
+	offer = wl_resource_get_user_data(resource);
 
-  if (!offer)
-    /* The offer was made inert.  */
-    return;
+	if (!offer)
+		/* The offer was made inert.  */
+		return;
 
-  offer->resource = NULL;
-  FreeDataOffer (offer);
+	offer->resource = NULL;
+	FreeDataOffer(offer);
 }
 
 static struct wl_resource *
-AddDataOffer (struct wl_client *client, PDataSource *source)
+AddDataOffer(struct wl_client *client, PDataSource *source)
 {
-  PDataOffer *offer;
-  struct wl_resource *resource;
+	PDataOffer	   *offer;
+	struct wl_resource *resource;
 
-  resource = wl_resource_create (client,
-				 &zwp_primary_selection_offer_v1_interface,
-				 /* 0 means to allocate a new resource
-				    ID server-side.  */
-				 1, 0);
+	resource = wl_resource_create(client,
+	    &zwp_primary_selection_offer_v1_interface,
+	    /* 0 means to allocate a new resource
+	       ID server-side.  */
+	    1, 0);
 
-  if (!resource)
-    return NULL;
+	if (!resource)
+		return NULL;
 
-  offer = XLCalloc (1, sizeof *offer);
-  offer->next = source->offers.next;
-  offer->last = &source->offers;
+	offer	    = XLCalloc(1, sizeof *offer);
+	offer->next = source->offers.next;
+	offer->last = &source->offers;
 
-  source->offers.next->last = offer;
-  source->offers.next = offer;
+	source->offers.next->last = offer;
+	source->offers.next	  = offer;
 
-  offer->resource = resource;
-  offer->source = source;
+	offer->resource = resource;
+	offer->source	= source;
 
-  wl_resource_set_implementation (resource, &offer_impl,
-				  offer, HandleOfferResourceDestroy);
+	wl_resource_set_implementation(resource, &offer_impl, offer,
+	    HandleOfferResourceDestroy);
 
-  return resource;
+	return resource;
 }
 
 /* Data source implementation.  */
-
 
 static Bool
-FindType (PDataSource *source, const char *mime_type)
+FindType(PDataSource *source, const char *mime_type)
 {
-  XLList *tem;
+	XLList *tem;
 
-  for (tem = source->mime_types; tem; tem = tem->next)
-    {
-      if (!strcmp (tem->data, mime_type))
-	return True;
-    }
+	for (tem = source->mime_types; tem; tem = tem->next) {
+		if (!strcmp(tem->data, mime_type))
+			return True;
+	}
 
-  return False;
+	return False;
 }
 
 static void
-Offer (struct wl_client *client, struct wl_resource *resource,
-       const char *mime_type)
+Offer(struct wl_client *client, struct wl_resource *resource,
+    const char *mime_type)
 {
-  PDataSource *source;
+	PDataSource *source;
 
-  source = wl_resource_get_user_data (resource);
+	source = wl_resource_get_user_data(resource);
 
-  /* If the type was already offered, simply return.  */
-  if (FindType (source, mime_type))
-    return;
+	/* If the type was already offered, simply return.  */
+	if (FindType(source, mime_type))
+		return;
 
-  /* Otherwise, add the MIME type to the list of types provided by
-     this source.  */
-  source->mime_types = XLListPrepend (source->mime_types,
-				      XLStrdup (mime_type));
-  source->atom_types = XIDListPrepend (source->atom_types,
-				       InternAtom (mime_type));
-  source->n_mime_types++;
+	/* Otherwise, add the MIME type to the list of types provided by
+	   this source.  */
+	source->mime_types = XLListPrepend(source->mime_types,
+	    XLStrdup(mime_type));
+	source->atom_types = XIDListPrepend(source->atom_types,
+	    InternAtom(mime_type));
+	source->n_mime_types++;
 }
 
 static void
-DestroySource (struct wl_client *client, struct wl_resource *resource)
+DestroySource(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
-static struct zwp_primary_selection_source_v1_interface source_impl =
-  {
-    .offer = Offer,
-    .destroy = DestroySource,
-  };
+static struct zwp_primary_selection_source_v1_interface source_impl = {
+	.offer	 = Offer,
+	.destroy = DestroySource,
+};
 
 static void
-HandleSourceResourceDestroy (struct wl_resource *resource)
+HandleSourceResourceDestroy(struct wl_resource *resource)
 {
-  PDataSource *source;
-  PDataOffer *offer, *last;
+	PDataSource *source;
+	PDataOffer  *offer, *last;
 
-  source = wl_resource_get_user_data (resource);
+	source = wl_resource_get_user_data(resource);
 
-  /* Now free every data offer.  */
-  offer = source->offers.next;
-  while (offer != &source->offers)
-    {
-      last = offer;
-      offer = offer->next;
+	/* Now free every data offer.  */
+	offer = source->offers.next;
+	while (offer != &source->offers) {
+		last  = offer;
+		offer = offer->next;
 
-      FreeDataOffer (last);
-    }
+		FreeDataOffer(last);
+	}
 
-  /* And free the MIME types offered by the source.  */
-  XLListFree (source->mime_types, XLFree);
-  XIDListFree (source->atom_types, NULL);
+	/* And free the MIME types offered by the source.  */
+	XLListFree(source->mime_types, XLFree);
+	XIDListFree(source->atom_types, NULL);
 
-  /* Maybe disown the primary selection.  */
-  XLNotePrimaryDestroyed (source);
+	/* Maybe disown the primary selection.  */
+	XLNotePrimaryDestroyed(source);
 
-  /* If source is the primary selection, clear it and send the change
-     to all clients.  */
-  if (source == primary_selection)
-    {
-      primary_selection = NULL;
-      NoticeChanged ();
-    }
+	/* If source is the primary selection, clear it and send the change
+	   to all clients.  */
+	if (source == primary_selection) {
+		primary_selection = NULL;
+		NoticeChanged();
+	}
 
-  /* And the source itself.  */
-  XLFree (source);
+	/* And the source itself.  */
+	XLFree(source);
 }
 
 struct wl_resource *
-XLResourceFromPDataSource (PDataSource *source)
+XLResourceFromPDataSource(PDataSource *source)
 {
-  return source->resource;
+	return source->resource;
 }
 
 Bool
-XLPDataSourceHasAtomTarget (PDataSource *source, Atom target)
+XLPDataSourceHasAtomTarget(PDataSource *source, Atom target)
 {
-  XIDList *list;
+	XIDList *list;
 
-  for (list = source->atom_types; list; list = list->next)
-    {
-      if (list->data == target)
-	return True;
-    }
+	for (list = source->atom_types; list; list = list->next) {
+		if (list->data == target)
+			return True;
+	}
 
-  return False;
+	return False;
 }
 
 Bool
-XLPDataSourceHasTarget (PDataSource *source, const char *mime_type)
+XLPDataSourceHasTarget(PDataSource *source, const char *mime_type)
 {
-  XLList *list;
+	XLList *list;
 
-  for (list = source->mime_types; list; list = list->next)
-    {
-      if (!strcmp (list->data, mime_type))
-	return True;
-    }
+	for (list = source->mime_types; list; list = list->next) {
+		if (!strcmp(list->data, mime_type))
+			return True;
+	}
 
-  return False;
+	return False;
 }
 
 int
-XLPDataSourceTargetCount (PDataSource *source)
+XLPDataSourceTargetCount(PDataSource *source)
 {
-  return source->n_mime_types;
+	return source->n_mime_types;
 }
 
 void
-XLPDataSourceGetTargets (PDataSource *source, Atom *targets)
+XLPDataSourceGetTargets(PDataSource *source, Atom *targets)
 {
-  int i;
-  XIDList *list;
+	int	 i;
+	XIDList *list;
 
-  list = source->atom_types;
+	list = source->atom_types;
 
-  for (i = 0; i < source->n_mime_types; ++i)
-    {
-      targets[i] = list->data;
-      list = list->next;
-    }
+	for (i = 0; i < source->n_mime_types; ++i) {
+		targets[i] = list->data;
+		list	   = list->next;
+	}
 }
 
 /* Device implementation.  */
-
 
 static void
-UpdateSingleReferenceWithForeignOffer (struct wl_client *client,
-				       PDataDevice *reference)
+UpdateSingleReferenceWithForeignOffer(struct wl_client *client,
+    PDataDevice					       *reference)
 {
-  struct wl_resource *scratch, *resource;
-  Timestamp time;
+	struct wl_resource *scratch, *resource;
+	Timestamp	    time;
 
-  time = foreign_selection_time;
-  resource = foreign_selection_functions.create_offer (client, time);
-  scratch = reference->resource;
+	time	 = foreign_selection_time;
+	resource = foreign_selection_functions.create_offer(client, time);
+	scratch	 = reference->resource;
 
-  if (!resource)
-    return;
+	if (!resource)
+		return;
 
-  /* Make the data offer known to the client.  */
-  zwp_primary_selection_device_v1_send_data_offer (scratch, resource);
+	/* Make the data offer known to the client.  */
+	zwp_primary_selection_device_v1_send_data_offer(scratch, resource);
 
-  /* Tell the foreign selection provider to send supported resources
-     to the client.  */
-  foreign_selection_functions.send_offers (resource, time);
+	/* Tell the foreign selection provider to send supported resources
+	   to the client.  */
+	foreign_selection_functions.send_offers(resource, time);
 
-  /* Finally, tell the client that the offer is a selection.  */
-  zwp_primary_selection_device_v1_send_selection (scratch, resource);
+	/* Finally, tell the client that the offer is a selection.  */
+	zwp_primary_selection_device_v1_send_selection(scratch, resource);
 
-  /* Set WasSentOffer since an offer was sent.  */
-  reference->flags |= WasSentOffer;
+	/* Set WasSentOffer since an offer was sent.  */
+	reference->flags |= WasSentOffer;
 }
 
 static void
-UpdateForSingleReference (PDataDevice *reference)
+UpdateForSingleReference(PDataDevice *reference)
 {
-  struct wl_resource *scratch, *offer;
-  struct wl_client *client;
-  XLList *type;
+	struct wl_resource *scratch, *offer;
+	struct wl_client   *client;
+	XLList		   *type;
 
-  if (!reference->seat)
-    /* This data device is inert... */
-    return;
+	if (!reference->seat)
+		/* This data device is inert... */
+		return;
 
-  client = wl_resource_get_client (reference->resource);
+	client = wl_resource_get_client(reference->resource);
 
-  if (!XLSeatIsClientFocused (reference->seat, client))
-    /* The client is not focused.  */
-    return;
+	if (!XLSeatIsClientFocused(reference->seat, client))
+		/* The client is not focused.  */
+		return;
 
-  scratch = reference->resource;
+	scratch = reference->resource;
 
-  if (!primary_selection)
-    {
-      /* There is no primary selection.  Send a NULL selection.  */
-      zwp_primary_selection_device_v1_send_selection (scratch, NULL);
-      return;
-    }
+	if (!primary_selection) {
+		/* There is no primary selection.  Send a NULL selection.  */
+		zwp_primary_selection_device_v1_send_selection(scratch, NULL);
+		return;
+	}
 
-  /* If the primary selection is foreign, call the foreign selection
-     functions.  */
-  if (primary_selection == &foreign_selection_key)
-    {
-      UpdateSingleReferenceWithForeignOffer (client, reference);
+	/* If the primary selection is foreign, call the foreign selection
+	   functions.  */
+	if (primary_selection == &foreign_selection_key) {
+		UpdateSingleReferenceWithForeignOffer(client, reference);
 
-      return;
-    }
+		return;
+	}
 
-  /* Otherwise, create a data offer for that client.  */
-  offer = AddDataOffer (client, primary_selection);
+	/* Otherwise, create a data offer for that client.  */
+	offer = AddDataOffer(client, primary_selection);
 
-  if (!offer)
-    /* Allocation of the offer failed.  */
-    return;
+	if (!offer)
+		/* Allocation of the offer failed.  */
+		return;
 
-  /* Introduce the offer to the client.  */
-  zwp_primary_selection_device_v1_send_data_offer (scratch, offer);
+	/* Introduce the offer to the client.  */
+	zwp_primary_selection_device_v1_send_data_offer(scratch, offer);
 
-  /* Send all the offered MIME types.  */
+	/* Send all the offered MIME types.  */
 
-  type = primary_selection->mime_types;
+	type = primary_selection->mime_types;
 
-  for (; type; type = type->next)
-    zwp_primary_selection_offer_v1_send_offer (offer, type->data);
+	for (; type; type = type->next)
+		zwp_primary_selection_offer_v1_send_offer(offer, type->data);
 
-  /* And tell the client it is the primary selection.  */
-  zwp_primary_selection_device_v1_send_selection (scratch, offer);
+	/* And tell the client it is the primary selection.  */
+	zwp_primary_selection_device_v1_send_selection(scratch, offer);
 
-  /* Set or clear WasSentOffer based on whether or not an offer was
-     sent.  */
-  if (offer)
-    reference->flags |= WasSentOffer;
-  else
-    reference->flags &= ~WasSentOffer;
+	/* Set or clear WasSentOffer based on whether or not an offer was
+	   sent.  */
+	if (offer)
+		reference->flags |= WasSentOffer;
+	else
+		reference->flags &= ~WasSentOffer;
 }
 
 void
-XLPrimarySelectionHandleFocusChange (Seat *seat)
+XLPrimarySelectionHandleFocusChange(Seat *seat)
 {
-  PDataDevice *device;
-  struct wl_client *client;
-  struct wl_resource *scratch;
+	PDataDevice	   *device;
+	struct wl_client   *client;
+	struct wl_resource *scratch;
 
-  /* The focus changed.  Send NULL data offers to any non-focused data
-     device that was previously sent a valid data offer, and send data
-     offers to any focused data device that was not.  */
+	/* The focus changed.  Send NULL data offers to any non-focused data
+	   device that was previously sent a valid data offer, and send data
+	   offers to any focused data device that was not.  */
 
-  device = all_devices.next;
-  while (device != &all_devices)
-    {
-      if (!device->seat)
-	/* Inert device.  */
-	goto next;
+	device = all_devices.next;
+	while (device != &all_devices) {
+		if (!device->seat)
+			/* Inert device.  */
+			goto next;
 
-      scratch = device->resource;
-      client = wl_resource_get_client (scratch);
+		scratch = device->resource;
+		client	= wl_resource_get_client(scratch);
 
-      if (device->flags & WasSentOffer
-	  && !XLSeatIsClientFocused (device->seat, client))
-	{
-	  /* The device was previously sent a data offer, but is no
-	     longer focused.  Send NULL and clear WasSentOffer.  */
-	  zwp_primary_selection_device_v1_send_selection (scratch,
-							  NULL);
-	  device->flags &= ~WasSentOffer;
+		if (device->flags & WasSentOffer &&
+		    !XLSeatIsClientFocused(device->seat, client)) {
+			/* The device was previously sent a data offer, but is
+			   no longer focused.  Send NULL and clear WasSentOffer.
+			 */
+			zwp_primary_selection_device_v1_send_selection(scratch,
+			    NULL);
+			device->flags &= ~WasSentOffer;
+		} else if (!(device->flags & WasSentOffer) &&
+		    primary_selection &&
+		    XLSeatIsClientFocused(device->seat, client))
+			/* The device is now focused, there is a primary
+			   selection, and the device was not sent a data offer.
+			   Send the missing data offer now.  */
+			UpdateForSingleReference(device);
+
+	next:
+		device = device->next;
 	}
-      else if (!(device->flags & WasSentOffer)
-	       && primary_selection
-	       && XLSeatIsClientFocused (device->seat, client))
-	/* The device is now focused, there is a primary selection,
-	   and the device was not sent a data offer.  Send the missing
-	   data offer now.  */
-	UpdateForSingleReference (device);
-
-    next:
-      device = device->next;
-    }
 }
 
 static void
-NoticeChanged (void)
+NoticeChanged(void)
 {
-  PDataDevice *device;
+	PDataDevice *device;
 
-  /* Send data offers to each data device.  */
-  device = all_devices.next;
+	/* Send data offers to each data device.  */
+	device = all_devices.next;
 
-  while (device != &all_devices)
-    {
-      UpdateForSingleReference (device);
-      device = device->next;
-    }
+	while (device != &all_devices) {
+		UpdateForSingleReference(device);
+		device = device->next;
+	}
 }
 
 static void
-SetSelection (struct wl_client *client, struct wl_resource *resource,
-	      struct wl_resource *source_resource, uint32_t serial)
+SetSelection(struct wl_client *client, struct wl_resource *resource,
+    struct wl_resource *source_resource, uint32_t serial)
 {
-  PDataDevice *device;
-  PDataSource *source;
-  struct wl_resource *scratch;
+	PDataDevice	   *device;
+	PDataSource	   *source;
+	struct wl_resource *scratch;
 
-  device = wl_resource_get_user_data (resource);
+	device = wl_resource_get_user_data(resource);
 
-  if (!device->seat)
-    /* This device is inert, since the seat has been deleted.  */
-    return;
+	if (!device->seat)
+		/* This device is inert, since the seat has been deleted.  */
+		return;
 
-  /* Note that both serial and last_change_serial are unsigned.
-     Remember two's complement arithmetic.  */
-  if (serial - last_change_serial > UINT32_MAX / 2)
-    /* This change is out of date.  Do nothing.  */
-    return;
+	/* Note that both serial and last_change_serial are unsigned.
+	   Remember two's complement arithmetic.  */
+	if (serial - last_change_serial > UINT32_MAX / 2)
+		/* This change is out of date.  Do nothing.  */
+		return;
 
-  /* Otherwise, set the primary selection.  */
-  last_change_serial = serial;
+	/* Otherwise, set the primary selection.  */
+	last_change_serial = serial;
 
-  if (source_resource)
-    source = wl_resource_get_user_data (source_resource);
-  else
-    source = NULL;
+	if (source_resource)
+		source = wl_resource_get_user_data(source_resource);
+	else
+		source = NULL;
 
-  /* Try to own the X primary selection.  If it fails, refrain from
-     changing the current selection data.  */
-  if (!XLNoteLocalPrimary (device->seat, source))
-    return;
+	/* Try to own the X primary selection.  If it fails, refrain from
+	   changing the current selection data.  */
+	if (!XLNoteLocalPrimary(device->seat, source))
+		return;
 
-  if (primary_selection)
-    {
-      /* The primary selection already exists.  Send the cancelled
-	 event and clear the primary selection variable.  */
-      scratch = primary_selection->resource;
+	if (primary_selection) {
+		/* The primary selection already exists.  Send the cancelled
+		   event and clear the primary selection variable.  */
+		scratch = primary_selection->resource;
 
-      if (primary_selection != &foreign_selection_key)
-	/* The special foreign selection has no associated
-	   wl_resource.  */
-	zwp_primary_selection_source_v1_send_cancelled (scratch);
+		if (primary_selection != &foreign_selection_key)
+			/* The special foreign selection has no associated
+			   wl_resource.  */
+			zwp_primary_selection_source_v1_send_cancelled(scratch);
 
-      /* Clear primary_selection.  */
-      primary_selection = NULL;
-    }
+		/* Clear primary_selection.  */
+		primary_selection = NULL;
+	}
 
-  if (source_resource)
-    /* Make source_resource the new primary selection.  */
-    primary_selection = source;
+	if (source_resource)
+		/* Make source_resource the new primary selection.  */
+		primary_selection = source;
 
-  /* Now, send the updated primary selection to clients.  */
-  NoticeChanged ();
+	/* Now, send the updated primary selection to clients.  */
+	NoticeChanged();
 }
 
 static void
-DestroyDevice (struct wl_client *client, struct wl_resource *resource)
+DestroyDevice(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
-static struct zwp_primary_selection_device_v1_interface device_impl =
-  {
-    .set_selection = SetSelection,
-    .destroy = DestroyDevice,
-  };
+static struct zwp_primary_selection_device_v1_interface device_impl = {
+	.set_selection = SetSelection,
+	.destroy       = DestroyDevice,
+};
 
 static void
-HandleSeatDestroy (void *data)
+HandleSeatDestroy(void *data)
 {
-  PDataDevice *device;
+	PDataDevice *device;
 
-  device = data;
+	device = data;
 
-  /* The seat destroy listener must be cancelled manually.  */
-  XLSeatCancelDestroyListener (device->seat_destroy_key);
-  device->seat_destroy_key = NULL;
-  device->seat = NULL;
+	/* The seat destroy listener must be cancelled manually.  */
+	XLSeatCancelDestroyListener(device->seat_destroy_key);
+	device->seat_destroy_key = NULL;
+	device->seat		 = NULL;
 }
 
 static void
-HandleDeviceResourceDestroy (struct wl_resource *resource)
+HandleDeviceResourceDestroy(struct wl_resource *resource)
 {
-  PDataDevice *device;
+	PDataDevice *device;
 
-  device = wl_resource_get_user_data (resource);
+	device = wl_resource_get_user_data(resource);
 
-  /* Cancel the seat destroy listener should it exist.  */
+	/* Cancel the seat destroy listener should it exist.  */
 
-  if (device->seat)
-    XLSeatCancelDestroyListener (device->seat_destroy_key);
+	if (device->seat)
+		XLSeatCancelDestroyListener(device->seat_destroy_key);
 
-  /* Unlink the device.  */
+	/* Unlink the device.  */
 
-  device->last->next = device->next;
-  device->next->last = device->last;
+	device->last->next = device->next;
+	device->next->last = device->last;
 
-  XLFree (device);
+	XLFree(device);
 }
 
 /* Device manager implementation.  */
-
 
 static void
-CreateSource (struct wl_client *client, struct wl_resource *resource,
-	      uint32_t id)
+CreateSource(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id)
 {
-  PDataSource *source;
+	PDataSource *source;
 
-  source = XLSafeMalloc (sizeof *source);
+	source = XLSafeMalloc(sizeof *source);
 
-  if (!source)
-    {
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+	if (!source) {
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  memset (source, 0, sizeof *source);
-  source->resource
-    = wl_resource_create (client, &zwp_primary_selection_source_v1_interface,
-			  wl_resource_get_version (resource), id);
+	memset(source, 0, sizeof *source);
+	source->resource = wl_resource_create(client,
+	    &zwp_primary_selection_source_v1_interface,
+	    wl_resource_get_version(resource), id);
 
-  if (!source->resource)
-    {
-      XLFree (source);
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+	if (!source->resource) {
+		XLFree(source);
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  source->offers.next = &source->offers;
-  source->offers.last = &source->offers;
+	source->offers.next = &source->offers;
+	source->offers.last = &source->offers;
 
-  wl_resource_set_implementation (source->resource, &source_impl,
-				  source, HandleSourceResourceDestroy);
+	wl_resource_set_implementation(source->resource, &source_impl, source,
+	    HandleSourceResourceDestroy);
 }
 
 static void
-GetDevice (struct wl_client *client, struct wl_resource *resource,
-	   uint32_t id, struct wl_resource *seat)
+GetDevice(struct wl_client *client, struct wl_resource *resource, uint32_t id,
+    struct wl_resource *seat)
 {
-  PDataDevice *device;
+	PDataDevice *device;
 
-  device = XLSafeMalloc (sizeof *device);
+	device = XLSafeMalloc(sizeof *device);
 
-  if (!device)
-    {
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+	if (!device) {
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  memset (device, 0, sizeof *device);
-  device->resource
-    = wl_resource_create (client,
-			  &zwp_primary_selection_device_v1_interface,
-			  wl_resource_get_version (resource), id);
+	memset(device, 0, sizeof *device);
+	device->resource = wl_resource_create(client,
+	    &zwp_primary_selection_device_v1_interface,
+	    wl_resource_get_version(resource), id);
 
-  if (!device->resource)
-    {
-      XLFree (device);
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+	if (!device->resource) {
+		XLFree(device);
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  device->seat = wl_resource_get_user_data (seat);
+	device->seat = wl_resource_get_user_data(seat);
 
-  if (XLSeatIsInert (device->seat))
-    device->seat = NULL;
-  else
-    device->seat_destroy_key
-      = XLSeatRunOnDestroy (device->seat, HandleSeatDestroy,
-			    device);
+	if (XLSeatIsInert(device->seat))
+		device->seat = NULL;
+	else
+		device->seat_destroy_key = XLSeatRunOnDestroy(device->seat,
+		    HandleSeatDestroy, device);
 
-  /* Link the device into the chain of all devices.  */
-  device->next = all_devices.next;
-  device->last = &all_devices;
-  all_devices.next->last = device;
-  all_devices.next = device;
+	/* Link the device into the chain of all devices.  */
+	device->next	       = all_devices.next;
+	device->last	       = &all_devices;
+	all_devices.next->last = device;
+	all_devices.next       = device;
 
-  wl_resource_set_implementation (device->resource, &device_impl,
-				  device, HandleDeviceResourceDestroy);
+	wl_resource_set_implementation(device->resource, &device_impl, device,
+	    HandleDeviceResourceDestroy);
 
-  /* If the primary selection is set and the client is focused, send
-     the data offer now.  */
-  if (primary_selection && device->seat
-      && XLSeatIsClientFocused (device->seat, client))
-    UpdateForSingleReference (device);
+	/* If the primary selection is set and the client is focused, send
+	   the data offer now.  */
+	if (primary_selection && device->seat &&
+	    XLSeatIsClientFocused(device->seat, client))
+		UpdateForSingleReference(device);
 }
 
 static void
-Destroy (struct wl_client *client, struct wl_resource *resource)
+Destroy(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
-static struct zwp_primary_selection_device_manager_v1_interface manager_impl =
-  {
-    .create_source = CreateSource,
-    .get_device = GetDevice,
-    .destroy = Destroy,
-  };
+static struct zwp_primary_selection_device_manager_v1_interface manager_impl = {
+	.create_source = CreateSource,
+	.get_device    = GetDevice,
+	.destroy       = Destroy,
+};
 
 static void
-HandleBind (struct wl_client *client, void *data, uint32_t version,
-	    uint32_t id)
+HandleBind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-  struct wl_resource *resource;
+	struct wl_resource *resource;
 
-  resource
-    = wl_resource_create (client,
-			  &zwp_primary_selection_device_manager_v1_interface,
-			  version, id);
+	resource = wl_resource_create(client,
+	    &zwp_primary_selection_device_manager_v1_interface, version, id);
 
-  if (!resource)
-    {
-      wl_client_post_no_memory (client);
-      return;
-    }
+	if (!resource) {
+		wl_client_post_no_memory(client);
+		return;
+	}
 
-  wl_resource_set_implementation (resource, &manager_impl, NULL, NULL);
-}
-
-
-
-void
-XLSetForeignPrimary (Timestamp time, CreateOfferFuncs functions)
-{
-  uint32_t serial;
-  struct wl_resource *scratch;
-
-  if (TimestampIs (time, Earlier, foreign_selection_time))
-    return;
-
-  serial = wl_display_next_serial (compositor.wl_display);
-
-  /* Use this serial to prevent clients from changing the selection
-     again until the next event is sent.  */
-  last_change_serial = serial;
-
-  foreign_selection_time = time;
-  foreign_selection_functions = functions;
-
-  if (primary_selection
-      && primary_selection != &foreign_selection_key)
-    {
-      scratch = primary_selection->resource;
-      zwp_primary_selection_source_v1_send_cancelled (scratch);
-    }
-
-  /* Use a special value of primary_selection to mean that foreign
-     selections are in use.  */
-  primary_selection = &foreign_selection_key;
-
-  /* Send new data offers to current clients.  */
-  NoticeChanged ();
+	wl_resource_set_implementation(resource, &manager_impl, NULL, NULL);
 }
 
 void
-XLClearForeignPrimary (Timestamp time)
+XLSetForeignPrimary(Timestamp time, CreateOfferFuncs functions)
 {
-  struct wl_resource *scratch;
+	uint32_t	    serial;
+	struct wl_resource *scratch;
 
-  if (TimestampIs (time, Earlier, foreign_selection_time))
-    return;
+	if (TimestampIs(time, Earlier, foreign_selection_time))
+		return;
 
-  if (primary_selection == &foreign_selection_key)
-    {
-      primary_selection = NULL;
-      NoticeChanged ();
-    }
-  else if (primary_selection)
-    {
-      /* The foreign selection was cleared; that means PRIMARY has
-	 been disowned after the last foreign or local selection was
-	 set, which means the local selection must be cleared as
-	 well.  */
-      scratch = primary_selection->resource;
-      zwp_primary_selection_source_v1_send_cancelled (scratch);
+	serial = wl_display_next_serial(compositor.wl_display);
 
-      /* Clear the primary selection and notice a change.  */
-      primary_selection = NULL;
-      NoticeChanged ();
-    }
+	/* Use this serial to prevent clients from changing the selection
+	   again until the next event is sent.  */
+	last_change_serial = serial;
 
-  foreign_selection_time = time;
+	foreign_selection_time	    = time;
+	foreign_selection_functions = functions;
+
+	if (primary_selection && primary_selection != &foreign_selection_key) {
+		scratch = primary_selection->resource;
+		zwp_primary_selection_source_v1_send_cancelled(scratch);
+	}
+
+	/* Use a special value of primary_selection to mean that foreign
+	   selections are in use.  */
+	primary_selection = &foreign_selection_key;
+
+	/* Send new data offers to current clients.  */
+	NoticeChanged();
 }
 
 void
-XLInitPrimarySelection (void)
+XLClearForeignPrimary(Timestamp time)
 {
-  global_primary_selection_device_manager
-    = wl_global_create (compositor.wl_display,
-			&zwp_primary_selection_device_manager_v1_interface,
-			1, NULL, HandleBind);
-  all_devices.next = &all_devices;
-  all_devices.last = &all_devices;
+	struct wl_resource *scratch;
+
+	if (TimestampIs(time, Earlier, foreign_selection_time))
+		return;
+
+	if (primary_selection == &foreign_selection_key) {
+		primary_selection = NULL;
+		NoticeChanged();
+	} else if (primary_selection) {
+		/* The foreign selection was cleared; that means PRIMARY has
+		   been disowned after the last foreign or local selection was
+		   set, which means the local selection must be cleared as
+		   well.  */
+		scratch = primary_selection->resource;
+		zwp_primary_selection_source_v1_send_cancelled(scratch);
+
+		/* Clear the primary selection and notice a change.  */
+		primary_selection = NULL;
+		NoticeChanged();
+	}
+
+	foreign_selection_time = time;
+}
+
+void
+XLInitPrimarySelection(void)
+{
+	global_primary_selection_device_manager =
+	    wl_global_create(compositor.wl_display,
+		&zwp_primary_selection_device_manager_v1_interface, 1, NULL,
+		HandleBind);
+	all_devices.next = &all_devices;
+	all_devices.last = &all_devices;
 }

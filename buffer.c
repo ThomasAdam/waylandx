@@ -23,103 +23,99 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 typedef struct _DestroyListener DestroyListener;
 
-struct _DestroyListener
-{
-  /* Function to call.  */
-  ExtBufferFunc func;
+struct _DestroyListener {
+	/* Function to call.  */
+	ExtBufferFunc func;
 
-  /* User data.  */
-  void *data;
+	/* User data.  */
+	void *data;
 };
 
 void
-XLRetainBuffer (ExtBuffer *buffer)
+XLRetainBuffer(ExtBuffer *buffer)
 {
-  buffer->funcs.retain (buffer);
+	buffer->funcs.retain(buffer);
 }
 
 void
-XLDereferenceBuffer (ExtBuffer *buffer)
+XLDereferenceBuffer(ExtBuffer *buffer)
 {
-  buffer->funcs.dereference (buffer);
+	buffer->funcs.dereference(buffer);
 }
 
 RenderBuffer
-XLRenderBufferFromBuffer (ExtBuffer *buffer)
+XLRenderBufferFromBuffer(ExtBuffer *buffer)
 {
-  return buffer->funcs.get_buffer (buffer);
+	return buffer->funcs.get_buffer(buffer);
 }
 
 unsigned int
-XLBufferWidth (ExtBuffer *buffer)
+XLBufferWidth(ExtBuffer *buffer)
 {
-  return buffer->funcs.width (buffer);
+	return buffer->funcs.width(buffer);
 }
 
 unsigned int
-XLBufferHeight (ExtBuffer *buffer)
+XLBufferHeight(ExtBuffer *buffer)
 {
-  return buffer->funcs.height (buffer);
+	return buffer->funcs.height(buffer);
 }
 
 void
-XLReleaseBuffer (ExtBuffer *buffer)
+XLReleaseBuffer(ExtBuffer *buffer)
 {
-  buffer->funcs.release (buffer);
+	buffer->funcs.release(buffer);
 }
 
 void *
-XLBufferRunOnFree (ExtBuffer *buffer, ExtBufferFunc func,
-		   void *data)
+XLBufferRunOnFree(ExtBuffer *buffer, ExtBufferFunc func, void *data)
 {
-  DestroyListener *listener;
+	DestroyListener *listener;
 
-  listener = XLMalloc (sizeof *listener);
+	listener = XLMalloc(sizeof *listener);
 
-  listener->func = func;
-  listener->data = data;
+	listener->func = func;
+	listener->data = data;
 
-  buffer->destroy_listeners
-    = XLListPrepend (buffer->destroy_listeners,
-		     listener);
+	buffer->destroy_listeners = XLListPrepend(buffer->destroy_listeners,
+	    listener);
 
-  return listener;
+	return listener;
 }
 
 void
-XLBufferCancelRunOnFree (ExtBuffer *buffer, void *key)
+XLBufferCancelRunOnFree(ExtBuffer *buffer, void *key)
 {
-  buffer->destroy_listeners
-    = XLListRemove (buffer->destroy_listeners, key);
-  XLFree (key);
+	buffer->destroy_listeners = XLListRemove(buffer->destroy_listeners,
+	    key);
+	XLFree(key);
 }
 
 void
-XLPrintBuffer (ExtBuffer *buffer)
+XLPrintBuffer(ExtBuffer *buffer)
 {
-  if (buffer->funcs.print_buffer)
-    buffer->funcs.print_buffer (buffer);
+	if (buffer->funcs.print_buffer)
+		buffer->funcs.print_buffer(buffer);
 }
 
 void
-ExtBufferDestroy (ExtBuffer *buffer)
+ExtBufferDestroy(ExtBuffer *buffer)
 {
-  XLList *listener;
-  DestroyListener *item;
+	XLList		*listener;
+	DestroyListener *item;
 
-  /* Now run every destroy listener connected to this buffer.  */
-  for (listener = buffer->destroy_listeners;
-       listener; listener = listener->next)
-    {
-      item = listener->data;
+	/* Now run every destroy listener connected to this buffer.  */
+	for (listener = buffer->destroy_listeners; listener;
+	    listener  = listener->next) {
+		item = listener->data;
 
-      item->func (buffer, item->data);
-    }
+		item->func(buffer, item->data);
+	}
 
-  /* Free the label if present.  */
-  XLFree (buffer->label);
+	/* Free the label if present.  */
+	XLFree(buffer->label);
 
-  /* Not very efficient, since the list is followed through twice, but
-     destroy listener lists should always be small.  */
-  XLListFree (buffer->destroy_listeners, XLFree);
+	/* Not very efficient, since the list is followed through twice, but
+	   destroy listener lists should always be small.  */
+	XLListFree(buffer->destroy_listeners, XLFree);
 }
