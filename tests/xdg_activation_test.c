@@ -22,18 +22,16 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <X11/extensions/XInput2.h>
 
-enum test_kind
-  {
-    XDG_ACTIVATION_KIND,
-  };
+enum test_kind {
+	XDG_ACTIVATION_KIND,
+};
 
-static const char *test_names[] =
-  {
-    "test_activation_kind",
-  };
+static const char *test_names[] = {
+	"test_activation_kind",
+};
 
-#define LAST_TEST	        XDG_ACTIVATION_KIND
-#define TEST_SOURCE_DEVICE	415000
+#define LAST_TEST XDG_ACTIVATION_KIND
+#define TEST_SOURCE_DEVICE 415000
 
 /* The display.  */
 static struct test_display *display;
@@ -42,17 +40,19 @@ static struct test_display *display;
 static struct xdg_activation_v1 *activation;
 
 /* Test interfaces.  */
-static struct test_interface test_interfaces[] =
-  {
-    { "xdg_activation_v1", &activation, &xdg_activation_v1_interface, 1, },
-  };
+static struct test_interface test_interfaces[] = {
+	{
+	    "xdg_activation_v1", &activation,
+	    &xdg_activation_v1_interface,
+	    1, },
+};
 
 /* The test surface window.  */
 static Window test_surface_window;
 
 /* The test surface and Wayland surface.  */
 static struct test_surface *test_surface;
-static struct wl_surface *wayland_surface;
+static struct wl_surface   *wayland_surface;
 
 /* The the last activation times.  */
 static uint32_t last_activation_months;
@@ -61,306 +61,248 @@ static uint32_t last_activation_milliseconds;
 /* The last activation surface.  */
 static struct wl_surface *last_activation_surface;
 
-
-
 /* Forward declarations.  */
-static void submit_surface_damage (struct wl_surface *, int, int, int, int);
-static void wait_for_map (void);
-
-
+static void submit_surface_damage(struct wl_surface *, int, int, int, int);
+static void wait_for_map(void);
 
 /* Get a timestamp suitable for use in events dispatched to the test
    seat.  */
 
 static uint32_t
-test_get_time (void)
+test_get_time(void)
 {
-  struct timespec timespec;
+	struct timespec timespec;
 
-  clock_gettime (CLOCK_MONOTONIC, &timespec);
+	clock_gettime(CLOCK_MONOTONIC, &timespec);
 
-  return (timespec.tv_sec * 1000
-	  + timespec.tv_nsec / 1000000);
+	return (timespec.tv_sec * 1000 + timespec.tv_nsec / 1000000);
 }
 
 /* Get the root window.  */
 
 static Window
-test_get_root (void)
+test_get_root(void)
 {
-  return DefaultRootWindow (display->x_display);
-}
-
-
-
-static void
-handle_xdg_activation_token_done (void *data,
-				  struct xdg_activation_token_v1 *token,
-				  const char *token_string)
-{
-  char **token_pointer;
-
-  token_pointer = data;
-  *token_pointer = strdup (token_string);
-}
-
-static const struct xdg_activation_token_v1_listener activation_token_listener =
-  {
-    handle_xdg_activation_token_done,
-  };
-
-
-
-static void
-check_activation_with_serial (uint32_t serial, bool expect_success)
-{
-  struct xdg_activation_token_v1 *token;
-  char *token_string;
-
-  /* Set the last user time to 0, 1001.  */
-  test_seat_controller_set_last_user_time (display->seat->controller,
-					   0, 1001);
-
-  /* Ask for an activation token.  */
-  token = xdg_activation_v1_get_activation_token (activation);
-  xdg_activation_token_v1_set_serial (token, serial, display->seat->seat);
-  xdg_activation_token_v1_set_surface (token, wayland_surface);
-  xdg_activation_token_v1_set_app_id (token, "xdg_activation_test");
-
-  token_string = NULL;
-  xdg_activation_token_v1_add_listener (token, &activation_token_listener,
-					&token_string);
-  xdg_activation_token_v1_commit (token);
-  wl_display_roundtrip (display->display);
-
-  if (!token_string)
-    report_test_failure ("failed to obtain activation token");
-
-  xdg_activation_token_v1_destroy (token);
-
-  /* Now, try to activate the surface.  */
-  last_activation_months = 0;
-  last_activation_milliseconds = 0;
-  xdg_activation_v1_activate (activation, token_string,
-			      wayland_surface);
-  wl_display_roundtrip (display->display);
-  free (token_string);
-
-  if (expect_success)
-    {
-      if (last_activation_months != 0
-	  || last_activation_milliseconds != 1001)
-	report_test_failure ("activation failed, wrong time or event not"
-			     " received");
-
-      if (last_activation_surface != wayland_surface)
-	report_test_failure ("activation succeeded, but the activator"
-			     " surface was wrong");
-    }
-  else if (last_activation_months || last_activation_milliseconds)
-    report_test_failure ("activation succeeded unexpectedly");
+	return DefaultRootWindow(display->x_display);
 }
 
 static void
-test_single_step (enum test_kind kind)
+handle_xdg_activation_token_done(void *data,
+    struct xdg_activation_token_v1 *token, const char *token_string)
 {
-  struct wl_buffer *buffer;
-  struct test_XIButtonState *button_state;
-  uint32_t serial;
+	char **token_pointer;
 
-  test_log ("running test step: %s", test_names[kind]);
-
-  switch (kind)
-    {
-    case XDG_ACTIVATION_KIND:
-      buffer = load_png_image (display, "tiny.png");
-
-      if (!buffer)
-	report_test_failure ("failed to load tiny.png");
-
-      wl_surface_attach (wayland_surface, buffer, 0, 0);
-      submit_surface_damage (wayland_surface, 0, 0, 4, 4);
-      wl_surface_commit (wayland_surface);
-      wait_for_map ();
-
-      /* First, dispatch a single enter and button press event and get
-	 a serial after that event.  */
-
-      test_seat_controller_dispatch_XI_Enter (display->seat->controller,
-					      test_get_time (),
-					      TEST_SOURCE_DEVICE,
-					      XINotifyAncestor,
-					      test_get_root (),
-					      test_surface_window,
-					      None,
-					      wl_fixed_from_double (1.0),
-					      wl_fixed_from_double (1.0),
-					      wl_fixed_from_double (1.0),
-					      wl_fixed_from_double (1.0),
-					      XINotifyNormal,
-					      False, True, NULL, NULL,
-					      NULL);
-
-      button_state
-	= test_seat_controller_get_XIButtonState (display->seat->controller);
-
-      test_seat_controller_dispatch_XI_ButtonPress (display->seat->controller,
-						    test_get_time (),
-						    TEST_SOURCE_DEVICE,
-						    2,
-						    test_get_root (),
-						    test_surface_window,
-						    None,
-						    wl_fixed_from_double (1.0),
-						    wl_fixed_from_double (1.0),
-						    wl_fixed_from_double (1.0),
-						    wl_fixed_from_double (1.0),
-						    0,
-						    button_state,
-						    NULL, NULL, NULL);
-      test_XIButtonState_add_button (button_state, 2);
-
-      serial = test_get_serial (display);
-
-      /* Release the buttons.  */
-      test_seat_controller_dispatch_XI_ButtonRelease (display->seat->controller,
-						      test_get_time (),
-						      TEST_SOURCE_DEVICE,
-						      2,
-						      test_get_root (),
-						      test_surface_window,
-						      None,
-						      wl_fixed_from_double (1.0),
-						      wl_fixed_from_double (1.0),
-						      wl_fixed_from_double (1.0),
-						      wl_fixed_from_double (1.0),
-						      0,
-						      button_state,
-						      NULL, NULL, NULL);
-      test_XIButtonState_remove_button (button_state, 2);
-
-      /* Now, set the last user time and try to activate the surface
-	 with the given serial.  */
-      check_activation_with_serial (serial, true);
-
-      /* Next, get a serial after the button release and try to
-	 activate with that.  */
-      serial = test_get_serial (display);
-      check_activation_with_serial (serial, true);
-
-      /* Finally, click the mouse button again.  Verify that using the
-	 previously obtained serial for activation no longer
-	 works.  */
-      test_seat_controller_dispatch_XI_ButtonPress (display->seat->controller,
-						    test_get_time (),
-						    TEST_SOURCE_DEVICE,
-						    2,
-						    test_get_root (),
-						    test_surface_window,
-						    None,
-						    wl_fixed_from_double (1.0),
-						    wl_fixed_from_double (1.0),
-						    wl_fixed_from_double (1.0),
-						    wl_fixed_from_double (1.0),
-						    0,
-						    button_state,
-						    NULL, NULL, NULL);
-      test_XIButtonState_add_button (button_state, 2);
-      check_activation_with_serial (serial, false);
-      break;
-    }
-
-  if (kind == LAST_TEST)
-    test_complete ();
+	token_pointer  = data;
+	*token_pointer = strdup(token_string);
 }
 
-
+static const struct xdg_activation_token_v1_listener
+    activation_token_listener = {
+	    handle_xdg_activation_token_done,
+    };
 
 static void
-submit_surface_damage (struct wl_surface *surface, int x, int y, int width,
-		       int height)
+check_activation_with_serial(uint32_t serial, bool expect_success)
 {
-  test_log ("damaging surface by %d, %d, %d, %d", x, y, width,
-	    height);
+	struct xdg_activation_token_v1 *token;
+	char			       *token_string;
 
-  wl_surface_damage (surface, x, y, width, height);
-}
+	/* Set the last user time to 0, 1001.  */
+	test_seat_controller_set_last_user_time(display->seat->controller, 0,
+	    1001);
 
-
+	/* Ask for an activation token.  */
+	token = xdg_activation_v1_get_activation_token(activation);
+	xdg_activation_token_v1_set_serial(token, serial, display->seat->seat);
+	xdg_activation_token_v1_set_surface(token, wayland_surface);
+	xdg_activation_token_v1_set_app_id(token, "xdg_activation_test");
 
-static void
-handle_test_surface_mapped (void *data, struct test_surface *test_surface,
-			    uint32_t xid, const char *display_string)
-{
-  test_surface_window = xid;
+	token_string = NULL;
+	xdg_activation_token_v1_add_listener(token, &activation_token_listener,
+	    &token_string);
+	xdg_activation_token_v1_commit(token);
+	wl_display_roundtrip(display->display);
+
+	if (!token_string)
+		report_test_failure("failed to obtain activation token");
+
+	xdg_activation_token_v1_destroy(token);
+
+	/* Now, try to activate the surface.  */
+	last_activation_months	     = 0;
+	last_activation_milliseconds = 0;
+	xdg_activation_v1_activate(activation, token_string, wayland_surface);
+	wl_display_roundtrip(display->display);
+	free(token_string);
+
+	if (expect_success) {
+		if (last_activation_months != 0 ||
+		    last_activation_milliseconds != 1001)
+			report_test_failure(
+			    "activation failed, wrong time or event not"
+			    " received");
+
+		if (last_activation_surface != wayland_surface)
+			report_test_failure(
+			    "activation succeeded, but the activator"
+			    " surface was wrong");
+	} else if (last_activation_months || last_activation_milliseconds)
+		report_test_failure("activation succeeded unexpectedly");
 }
 
 static void
-handle_test_surface_activated (void *data, struct test_surface *test_surface,
-			       uint32_t months, uint32_t milliseconds,
-			       struct wl_surface *activator_surface)
+test_single_step(enum test_kind kind)
 {
-  last_activation_months = months;
-  last_activation_milliseconds = milliseconds;
-  last_activation_surface = activator_surface;
+	struct wl_buffer	  *buffer;
+	struct test_XIButtonState *button_state;
+	uint32_t		   serial;
+
+	test_log("running test step: %s", test_names[kind]);
+
+	switch (kind) {
+	case XDG_ACTIVATION_KIND:
+		buffer = load_png_image(display, "tiny.png");
+
+		if (!buffer)
+			report_test_failure("failed to load tiny.png");
+
+		wl_surface_attach(wayland_surface, buffer, 0, 0);
+		submit_surface_damage(wayland_surface, 0, 0, 4, 4);
+		wl_surface_commit(wayland_surface);
+		wait_for_map();
+
+		/* First, dispatch a single enter and button press event and get
+		   a serial after that event.  */
+
+		test_seat_controller_dispatch_XI_Enter(
+		    display->seat->controller, test_get_time(),
+		    TEST_SOURCE_DEVICE, XINotifyAncestor, test_get_root(),
+		    test_surface_window, None, wl_fixed_from_double(1.0),
+		    wl_fixed_from_double(1.0), wl_fixed_from_double(1.0),
+		    wl_fixed_from_double(1.0), XINotifyNormal, False, True,
+		    NULL, NULL, NULL);
+
+		button_state = test_seat_controller_get_XIButtonState(
+		    display->seat->controller);
+
+		test_seat_controller_dispatch_XI_ButtonPress(
+		    display->seat->controller, test_get_time(),
+		    TEST_SOURCE_DEVICE, 2, test_get_root(), test_surface_window,
+		    None, wl_fixed_from_double(1.0), wl_fixed_from_double(1.0),
+		    wl_fixed_from_double(1.0), wl_fixed_from_double(1.0), 0,
+		    button_state, NULL, NULL, NULL);
+		test_XIButtonState_add_button(button_state, 2);
+
+		serial = test_get_serial(display);
+
+		/* Release the buttons.  */
+		test_seat_controller_dispatch_XI_ButtonRelease(
+		    display->seat->controller, test_get_time(),
+		    TEST_SOURCE_DEVICE, 2, test_get_root(), test_surface_window,
+		    None, wl_fixed_from_double(1.0), wl_fixed_from_double(1.0),
+		    wl_fixed_from_double(1.0), wl_fixed_from_double(1.0), 0,
+		    button_state, NULL, NULL, NULL);
+		test_XIButtonState_remove_button(button_state, 2);
+
+		/* Now, set the last user time and try to activate the surface
+		   with the given serial.  */
+		check_activation_with_serial(serial, true);
+
+		/* Next, get a serial after the button release and try to
+		   activate with that.  */
+		serial = test_get_serial(display);
+		check_activation_with_serial(serial, true);
+
+		/* Finally, click the mouse button again.  Verify that using the
+		   previously obtained serial for activation no longer
+		   works.  */
+		test_seat_controller_dispatch_XI_ButtonPress(
+		    display->seat->controller, test_get_time(),
+		    TEST_SOURCE_DEVICE, 2, test_get_root(), test_surface_window,
+		    None, wl_fixed_from_double(1.0), wl_fixed_from_double(1.0),
+		    wl_fixed_from_double(1.0), wl_fixed_from_double(1.0), 0,
+		    button_state, NULL, NULL, NULL);
+		test_XIButtonState_add_button(button_state, 2);
+		check_activation_with_serial(serial, false);
+		break;
+	}
+
+	if (kind == LAST_TEST)
+		test_complete();
 }
 
 static void
-handle_test_surface_committed (void *data, struct test_surface *surface,
-			       uint32_t presentation_hint)
+submit_surface_damage(struct wl_surface *surface, int x, int y, int width,
+    int height)
 {
+	test_log("damaging surface by %d, %d, %d, %d", x, y, width, height);
 
+	wl_surface_damage(surface, x, y, width, height);
 }
 
-static const struct test_surface_listener test_surface_listener =
-  {
-    handle_test_surface_mapped,
-    handle_test_surface_activated,
-    handle_test_surface_committed,
-  };
-
-
-
 static void
-wait_for_map (void)
+handle_test_surface_mapped(void *data, struct test_surface *test_surface,
+    uint32_t xid, const char *display_string)
 {
-  while (!test_surface_window)
-    {
-      if (wl_display_dispatch (display->display) == -1)
-	die ("wl_display_dispatch");
-    }
+	test_surface_window = xid;
 }
 
-
+static void
+handle_test_surface_activated(void *data, struct test_surface *test_surface,
+    uint32_t months, uint32_t milliseconds,
+    struct wl_surface *activator_surface)
+{
+	last_activation_months	     = months;
+	last_activation_milliseconds = milliseconds;
+	last_activation_surface	     = activator_surface;
+}
 
 static void
-run_test (void)
+handle_test_surface_committed(void *data, struct test_surface *surface,
+    uint32_t presentation_hint)
 {
-  if (!make_test_surface (display, &wayland_surface,
-			  &test_surface))
-    report_test_failure ("failed to create test surface");
+}
 
-  test_surface_add_listener (test_surface, &test_surface_listener,
-			     NULL);
-  test_single_step (XDG_ACTIVATION_KIND);
+static const struct test_surface_listener test_surface_listener = {
+	handle_test_surface_mapped,
+	handle_test_surface_activated,
+	handle_test_surface_committed,
+};
 
-  while (true)
-    {
-      if (wl_display_dispatch (display->display) == -1)
-        die ("wl_display_dispatch");
-    }
+static void
+wait_for_map(void)
+{
+	while (!test_surface_window) {
+		if (wl_display_dispatch(display->display) == -1)
+			die("wl_display_dispatch");
+	}
+}
+
+static void
+run_test(void)
+{
+	if (!make_test_surface(display, &wayland_surface, &test_surface))
+		report_test_failure("failed to create test surface");
+
+	test_surface_add_listener(test_surface, &test_surface_listener, NULL);
+	test_single_step(XDG_ACTIVATION_KIND);
+
+	while (true) {
+		if (wl_display_dispatch(display->display) == -1)
+			die("wl_display_dispatch");
+	}
 }
 
 int
-main (void)
+main(void)
 {
-  test_init ();
-  display = open_test_display (test_interfaces,
-			       ARRAYELTS (test_interfaces));
+	test_init();
+	display = open_test_display(test_interfaces,
+	    ARRAYELTS(test_interfaces));
 
-  if (!display)
-    report_test_failure ("failed to open display");
+	if (!display)
+		report_test_failure("failed to open display");
 
-  test_init_seat (display);
-  run_test ();
+	test_init_seat(display);
+	run_test();
 }

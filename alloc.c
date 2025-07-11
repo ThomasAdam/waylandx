@@ -25,84 +25,79 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "compositor.h"
 
 void *
-XLMalloc (size_t size)
+XLMalloc(size_t size)
 {
-  void *ptr;
+	void *ptr;
 
-  ptr = malloc (size);
+	ptr = malloc(size);
 
-  if (!ptr && size)
-    {
-      fprintf (stderr, "Allocation of %zu bytes failed\n",
-	       size);
-      abort ();
-    }
+	if (!ptr && size) {
+		fprintf(stderr, "Allocation of %zu bytes failed\n", size);
+		abort();
+	}
 
-  return ptr;
+	return ptr;
 }
 
 void *
-XLSafeMalloc (size_t size)
+XLSafeMalloc(size_t size)
 {
-  return malloc (size);
+	return malloc(size);
 }
 
 void *
-XLCalloc (size_t nmemb, size_t size)
+XLCalloc(size_t nmemb, size_t size)
 {
-  void *ptr;
+	void *ptr;
 
-  ptr = calloc (nmemb, size);
+	ptr = calloc(nmemb, size);
 
-  if (!ptr && nmemb && size)
-    {
-      fprintf (stderr, "Allocation of %zu * %zu failed\n",
-	       nmemb, size);
-      abort ();
-    }
+	if (!ptr && nmemb && size) {
+		fprintf(stderr, "Allocation of %zu * %zu failed\n", nmemb,
+		    size);
+		abort();
+	}
 
-  return ptr;
+	return ptr;
 }
 
 void
-XLFree (void *ptr)
+XLFree(void *ptr)
 {
-  if (ptr)
-    free (ptr);
+	if (ptr)
+		free(ptr);
 }
 
 char *
-XLStrdup (const char *data)
+XLStrdup(const char *data)
 {
-  char *string;
+	char *string;
 
-  string = strdup (data);
+	string = strdup(data);
 
-  if (!string)
-    {
-      fprintf (stderr, "Allocation of %zu bytes failed\n",
-	       strlen (data));
-      abort ();
-    }
+	if (!string) {
+		fprintf(stderr, "Allocation of %zu bytes failed\n",
+		    strlen(data));
+		abort();
+	}
 
-  return string;
+	return string;
 }
 
 void *
-XLRealloc (void *ptr, size_t size)
+XLRealloc(void *ptr, size_t size)
 {
-  if (!ptr)
-    return XLMalloc (size);
+	if (!ptr)
+		return XLMalloc(size);
 
-  ptr = realloc (ptr, size);
+	ptr = realloc(ptr, size);
 
-  if (size && !ptr)
-    {
-      fprintf (stderr, "Reallocation of %zu bytes failed\n", size);
-      abort ();
-    }
+	if (size && !ptr) {
+		fprintf(stderr, "Reallocation of %zu bytes failed\n", size);
+		abort();
+	}
 
-  /* Allow realloc to return NULL if size is also NULL.  */
+	/* Allow realloc to return NULL if size is also NULL.  */
 
-  return ptr;
+	return ptr;
 }

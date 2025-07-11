@@ -24,197 +24,173 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 typedef struct _TearingControl TearingControl;
 
-struct _TearingControl
-{
-  /* The associated surface.  NULL when detached.  */
-  Surface *surface;
+struct _TearingControl {
+	/* The associated surface.  NULL when detached.  */
+	Surface *surface;
 
-  /* The associated resource.  */
-  struct wl_resource *resource;
+	/* The associated resource.  */
+	struct wl_resource *resource;
 };
 
 /* The tearing control manager.  */
 static struct wl_global *tearing_control_manager_global;
 
-
-
 static void
-DestroyTearingControl (struct wl_client *client, struct wl_resource *resource)
+DestroyTearingControl(struct wl_client *client, struct wl_resource *resource)
 {
-  TearingControl *control;
+	TearingControl *control;
 
-  control = wl_resource_get_user_data (resource);
+	control = wl_resource_get_user_data(resource);
 
-  if (control->surface)
-    {
-      /* Reset the presentation hint.  */
-      control->surface->pending_state.presentation_hint
-	= PresentationHintVsync;
-      control->surface->pending_state.pending
-	|= PendingPresentationHint;
-    }
-
-  wl_resource_destroy (resource);
-}
-
-static void
-SetPresentationHint (struct wl_client *client, struct wl_resource *resource,
-		     uint32_t hint)
-{
-  TearingControl *control;
-
-  control = wl_resource_get_user_data (resource);
-
-  if (control->surface)
-    {
-      switch (hint)
-	{
-	case WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC:
-	  control->surface->pending_state.presentation_hint
-	    = PresentationHintAsync;
-	  break;
-
-	default:
-	  control->surface->pending_state.presentation_hint
-	    = PresentationHintVsync;
-	  break;
+	if (control->surface) {
+		/* Reset the presentation hint.  */
+		control->surface->pending_state.presentation_hint =
+		    PresentationHintVsync;
+		control->surface->pending_state.pending |=
+		    PendingPresentationHint;
 	}
 
-      control->surface->pending_state.pending |= PendingPresentationHint;
-    }
-}
-
-static const struct wp_tearing_control_v1_interface control_impl =
-  {
-    .destroy = DestroyTearingControl,
-    .set_presentation_hint = SetPresentationHint,
-  };
-
-static void
-HandleResourceDestroy (struct wl_resource *resource)
-{
-  TearingControl *control, **reference;
-
-  control = wl_resource_get_user_data (resource);
-
-  /* If the surface is still attached to the tearing control, remove
-     it from the surface.  */
-
-  if (control->surface)
-    {
-      reference
-	= XLSurfaceFindClientData (control->surface,
-				   TearingControlData);
-      XLAssert (reference != NULL);
-
-      *reference = NULL;
-    }
-
-  XLFree (control);
-}
-
-
-
-static void
-FreeTearingControlData (void *data)
-{
-  TearingControl **control;
-
-  control = data;
-
-  if (!*control)
-    return;
-
-  /* Detach the surface from the tearing control.  */
-  (*control)->surface = NULL;
+	wl_resource_destroy(resource);
 }
 
 static void
-Destroy (struct wl_client *client, struct wl_resource *resource)
+SetPresentationHint(struct wl_client *client, struct wl_resource *resource,
+    uint32_t hint)
 {
-  wl_resource_destroy (resource);
+	TearingControl *control;
+
+	control = wl_resource_get_user_data(resource);
+
+	if (control->surface) {
+		switch (hint) {
+		case WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC:
+			control->surface->pending_state.presentation_hint =
+			    PresentationHintAsync;
+			break;
+
+		default:
+			control->surface->pending_state.presentation_hint =
+			    PresentationHintVsync;
+			break;
+		}
+
+		control->surface->pending_state.pending |=
+		    PendingPresentationHint;
+	}
+}
+
+static const struct wp_tearing_control_v1_interface control_impl = {
+	.destroy	       = DestroyTearingControl,
+	.set_presentation_hint = SetPresentationHint,
+};
+
+static void
+HandleResourceDestroy(struct wl_resource *resource)
+{
+	TearingControl *control, **reference;
+
+	control = wl_resource_get_user_data(resource);
+
+	/* If the surface is still attached to the tearing control, remove
+	   it from the surface.  */
+
+	if (control->surface) {
+		reference = XLSurfaceFindClientData(control->surface,
+		    TearingControlData);
+		XLAssert(reference != NULL);
+
+		*reference = NULL;
+	}
+
+	XLFree(control);
 }
 
 static void
-GetTearingControl (struct wl_client *client, struct wl_resource *resource,
-		   uint32_t id, struct wl_resource *surface_resource)
+FreeTearingControlData(void *data)
 {
-  Surface *surface;
-  TearingControl **control;
+	TearingControl **control;
 
-  surface = wl_resource_get_user_data (surface_resource);
-  control = XLSurfaceGetClientData (surface, TearingControlData,
-				    sizeof *control,
-				    FreeTearingControlData);
+	control = data;
 
-#define ControlExists						\
-  WP_TEARING_CONTROL_MANAGER_V1_ERROR_TEARING_CONTROL_EXISTS
+	if (!*control)
+		return;
 
-  if (*control)
-    {
-      /* A tearing control resource already exists for this
-	 surface.  */
-      wl_resource_post_error (resource, ControlExists,
-			      "a wp_tearing_control_v1 resource already exists"
-			      " for the specified surface");
-      return;
-    }
+	/* Detach the surface from the tearing control.  */
+	(*control)->surface = NULL;
+}
+
+static void
+Destroy(struct wl_client *client, struct wl_resource *resource)
+{
+	wl_resource_destroy(resource);
+}
+
+static void
+GetTearingControl(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id, struct wl_resource *surface_resource)
+{
+	Surface		*surface;
+	TearingControl **control;
+
+	surface = wl_resource_get_user_data(surface_resource);
+	control = XLSurfaceGetClientData(surface, TearingControlData,
+	    sizeof *control, FreeTearingControlData);
+
+#define ControlExists WP_TEARING_CONTROL_MANAGER_V1_ERROR_TEARING_CONTROL_EXISTS
+
+	if (*control) {
+		/* A tearing control resource already exists for this
+		   surface.  */
+		wl_resource_post_error(resource, ControlExists,
+		    "a wp_tearing_control_v1 resource already exists"
+		    " for the specified surface");
+		return;
+	}
 
 #undef ControlExists
 
-  (*control) = XLCalloc (1, sizeof **control);
-  (*control)->resource
-    = wl_resource_create (client,
-			  &wp_tearing_control_v1_interface,
-			  wl_resource_get_version (resource), id);
+	(*control)	     = XLCalloc(1, sizeof **control);
+	(*control)->resource = wl_resource_create(client,
+	    &wp_tearing_control_v1_interface, wl_resource_get_version(resource),
+	    id);
 
-  if (!(*control)->resource)
-    {
-      XLFree (*control);
-      (*control) = NULL;
+	if (!(*control)->resource) {
+		XLFree(*control);
+		(*control) = NULL;
 
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  (*control)->surface = surface;
-  wl_resource_set_implementation ((*control)->resource, &control_impl,
-				  (*control), HandleResourceDestroy);
+	(*control)->surface = surface;
+	wl_resource_set_implementation((*control)->resource, &control_impl,
+	    (*control), HandleResourceDestroy);
 }
 
-static const struct wp_tearing_control_manager_v1_interface manager_impl =
-  {
-    .destroy = Destroy,
-    .get_tearing_control = GetTearingControl,
-  };
-
-
+static const struct wp_tearing_control_manager_v1_interface manager_impl = {
+	.destroy	     = Destroy,
+	.get_tearing_control = GetTearingControl,
+};
 
 static void
-HandleBind (struct wl_client *client, void *data,
-	    uint32_t version, uint32_t id)
+HandleBind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-  struct wl_resource *resource;
+	struct wl_resource *resource;
 
-  resource = wl_resource_create (client,
-				 &wp_tearing_control_manager_v1_interface,
-				 version, id);
+	resource = wl_resource_create(client,
+	    &wp_tearing_control_manager_v1_interface, version, id);
 
-  if (!resource)
-    {
-      wl_client_post_no_memory (client);
-      return;
-    }
+	if (!resource) {
+		wl_client_post_no_memory(client);
+		return;
+	}
 
-  wl_resource_set_implementation (resource, &manager_impl,
-				  NULL, NULL);
+	wl_resource_set_implementation(resource, &manager_impl, NULL, NULL);
 }
 
 void
-XLInitTearingControl (void)
+XLInitTearingControl(void)
 {
-  tearing_control_manager_global
-    = wl_global_create (compositor.wl_display,
-			&wp_tearing_control_manager_v1_interface,
-			1, NULL, HandleBind);
+	tearing_control_manager_global = wl_global_create(compositor.wl_display,
+	    &wp_tearing_control_manager_v1_interface, 1, NULL, HandleBind);
 }

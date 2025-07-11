@@ -23,7 +23,7 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "compositor.h"
 
-#define AtomTableSize	256
+#define AtomTableSize 256
 
 typedef struct _AtomTable AtomTable;
 
@@ -32,111 +32,64 @@ Atom DirectTransferAtoms;
 
 /* Simple hash table for atoms.  */
 
-struct _AtomTable
-{
-  /* Atom array indexed by table size.  */
-  Atom *atoms[AtomTableSize];
+struct _AtomTable {
+	/* Atom array indexed by table size.  */
+	Atom *atoms[AtomTableSize];
 
-  /* Atom name array indexed by table size.  */
-  char **names[AtomTableSize];
+	/* Atom name array indexed by table size.  */
+	char **names[AtomTableSize];
 
-  /* Size of each array.  */
-  ptrdiff_t atoms_length[AtomTableSize];
+	/* Size of each array.  */
+	ptrdiff_t atoms_length[AtomTableSize];
 };
 
 /* Array of all atom names.  */
-static const char *names[] =
-  {
-    "_NET_WM_OPAQUE_REGION",
-    "_XL_BUFFER_RELEASE",
-    "_NET_WM_SYNC_REQUEST_COUNTER",
-    "_NET_WM_FRAME_DRAWN",
-    "WM_DELETE_WINDOW",
-    "WM_PROTOCOLS",
-    "_NET_SUPPORTING_WM_CHECK",
-    "_NET_SUPPORTED",
-    "_NET_WM_SYNC_REQUEST",
-    "_MOTIF_WM_HINTS",
-    "_NET_WM_STATE_MAXIMIZED_VERT",
-    "_NET_WM_STATE_MAXIMIZED_HORZ",
-    "_NET_WM_STATE_FOCUSED",
-    "_NET_WM_STATE_FULLSCREEN",
-    "_NET_WM_STATE",
-    "_NET_WM_MOVERESIZE",
-    "_GTK_FRAME_EXTENTS",
-    "WM_TRANSIENT_FOR",
-    "_XL_DMA_BUF_CREATED",
-    "_GTK_SHOW_WINDOW_MENU",
-    "_NET_WM_ALLOWED_ACTIONS",
-    "_NET_WM_ACTION_FULLSCREEN",
-    "_NET_WM_ACTION_MAXIMIZE_HORZ",
-    "_NET_WM_ACTION_MAXIMIZE_VERT",
-    "_NET_WM_ACTION_MINIMIZE",
-    "INCR",
-    "CLIPBOARD",
-    "TARGETS",
-    "UTF8_STRING",
-    "_XL_SERVER_TIME_ATOM",
-    "MULTIPLE",
-    "TIMESTAMP",
-    "ATOM_PAIR",
-    "_NET_WM_NAME",
-    "WM_NAME",
-    "MANAGER",
-    "_XSETTINGS_SETTINGS",
-    "libinput Scroll Methods Available",
-    "XdndAware",
-    "XdndSelection",
-    "XdndTypeList",
-    "XdndActionCopy",
-    "XdndActionMove",
-    "XdndActionLink",
-    "XdndActionAsk",
-    "XdndActionPrivate",
-    "XdndActionList",
-    "XdndActionDescription",
-    "XdndProxy",
-    "XdndEnter",
-    "XdndPosition",
-    "XdndStatus",
-    "XdndLeave",
-    "XdndDrop",
-    "XdndFinished",
-    "_NET_WM_FRAME_TIMINGS",
-    "_NET_WM_BYPASS_COMPOSITOR",
-    "WM_STATE",
-    "_NET_WM_WINDOW_TYPE",
-    "_NET_WM_WINDOW_TYPE_MENU",
-    "_NET_WM_WINDOW_TYPE_DND",
-    "CONNECTOR_ID",
-    "_NET_WM_PID",
-    "_NET_WM_PING",
-    "libinput Scrolling Pixel Distance",
-    "_NET_ACTIVE_WINDOW",
+static const char *names[] = { "_NET_WM_OPAQUE_REGION", "_XL_BUFFER_RELEASE",
+	"_NET_WM_SYNC_REQUEST_COUNTER", "_NET_WM_FRAME_DRAWN",
+	"WM_DELETE_WINDOW", "WM_PROTOCOLS", "_NET_SUPPORTING_WM_CHECK",
+	"_NET_SUPPORTED", "_NET_WM_SYNC_REQUEST", "_MOTIF_WM_HINTS",
+	"_NET_WM_STATE_MAXIMIZED_VERT", "_NET_WM_STATE_MAXIMIZED_HORZ",
+	"_NET_WM_STATE_FOCUSED", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE",
+	"_NET_WM_MOVERESIZE", "_GTK_FRAME_EXTENTS", "WM_TRANSIENT_FOR",
+	"_XL_DMA_BUF_CREATED", "_GTK_SHOW_WINDOW_MENU",
+	"_NET_WM_ALLOWED_ACTIONS", "_NET_WM_ACTION_FULLSCREEN",
+	"_NET_WM_ACTION_MAXIMIZE_HORZ", "_NET_WM_ACTION_MAXIMIZE_VERT",
+	"_NET_WM_ACTION_MINIMIZE", "INCR", "CLIPBOARD", "TARGETS",
+	"UTF8_STRING", "_XL_SERVER_TIME_ATOM", "MULTIPLE", "TIMESTAMP",
+	"ATOM_PAIR", "_NET_WM_NAME", "WM_NAME", "MANAGER",
+	"_XSETTINGS_SETTINGS", "libinput Scroll Methods Available", "XdndAware",
+	"XdndSelection", "XdndTypeList", "XdndActionCopy", "XdndActionMove",
+	"XdndActionLink", "XdndActionAsk", "XdndActionPrivate",
+	"XdndActionList", "XdndActionDescription", "XdndProxy", "XdndEnter",
+	"XdndPosition", "XdndStatus", "XdndLeave", "XdndDrop", "XdndFinished",
+	"_NET_WM_FRAME_TIMINGS", "_NET_WM_BYPASS_COMPOSITOR", "WM_STATE",
+	"_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_MENU",
+	"_NET_WM_WINDOW_TYPE_DND", "CONNECTOR_ID", "_NET_WM_PID",
+	"_NET_WM_PING", "libinput Scrolling Pixel Distance",
+	"_NET_ACTIVE_WINDOW",
 
-    /* These are automatically generated from mime.txt.  */
-    DirectTransferAtomNames
-  };
+	/* These are automatically generated from mime.txt.  */
+	DirectTransferAtomNames };
 
 Atom _NET_WM_OPAQUE_REGION, _XL_BUFFER_RELEASE, _NET_WM_SYNC_REQUEST_COUNTER,
-  _NET_WM_FRAME_DRAWN, WM_DELETE_WINDOW, WM_PROTOCOLS,
-  _NET_SUPPORTING_WM_CHECK, _NET_SUPPORTED, _NET_WM_SYNC_REQUEST,
-  _MOTIF_WM_HINTS, _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_STATE_MAXIMIZED_HORZ,
-  _NET_WM_STATE_FOCUSED, _NET_WM_STATE_FULLSCREEN, _NET_WM_STATE,
-  _NET_WM_MOVERESIZE, _GTK_FRAME_EXTENTS, WM_TRANSIENT_FOR,
-  _XL_DMA_BUF_CREATED, _GTK_SHOW_WINDOW_MENU, _NET_WM_ALLOWED_ACTIONS,
-  _NET_WM_ACTION_FULLSCREEN, _NET_WM_ACTION_MAXIMIZE_HORZ,
-  _NET_WM_ACTION_MAXIMIZE_VERT, _NET_WM_ACTION_MINIMIZE, INCR, CLIPBOARD,
-  TARGETS, UTF8_STRING, _XL_SERVER_TIME_ATOM, MULTIPLE, TIMESTAMP, ATOM_PAIR,
-  _NET_WM_NAME, WM_NAME, MANAGER, _XSETTINGS_SETTINGS,
-  libinput_Scroll_Methods_Available, XdndAware, XdndSelection, XdndTypeList,
-  XdndActionCopy, XdndActionMove, XdndActionLink, XdndActionAsk,
-  XdndActionPrivate, XdndActionList, XdndActionDescription, XdndProxy,
-  XdndEnter, XdndPosition, XdndStatus, XdndLeave, XdndDrop, XdndFinished,
-  _NET_WM_FRAME_TIMINGS, _NET_WM_BYPASS_COMPOSITOR, WM_STATE,
-  _NET_WM_WINDOW_TYPE, _NET_WM_WINDOW_TYPE_MENU, _NET_WM_WINDOW_TYPE_DND,
-  CONNECTOR_ID, _NET_WM_PID, _NET_WM_PING, libinput_Scrolling_Pixel_Distance,
-  _NET_ACTIVE_WINDOW;
+    _NET_WM_FRAME_DRAWN, WM_DELETE_WINDOW, WM_PROTOCOLS,
+    _NET_SUPPORTING_WM_CHECK, _NET_SUPPORTED, _NET_WM_SYNC_REQUEST,
+    _MOTIF_WM_HINTS, _NET_WM_STATE_MAXIMIZED_VERT, _NET_WM_STATE_MAXIMIZED_HORZ,
+    _NET_WM_STATE_FOCUSED, _NET_WM_STATE_FULLSCREEN, _NET_WM_STATE,
+    _NET_WM_MOVERESIZE, _GTK_FRAME_EXTENTS, WM_TRANSIENT_FOR,
+    _XL_DMA_BUF_CREATED, _GTK_SHOW_WINDOW_MENU, _NET_WM_ALLOWED_ACTIONS,
+    _NET_WM_ACTION_FULLSCREEN, _NET_WM_ACTION_MAXIMIZE_HORZ,
+    _NET_WM_ACTION_MAXIMIZE_VERT, _NET_WM_ACTION_MINIMIZE, INCR, CLIPBOARD,
+    TARGETS, UTF8_STRING, _XL_SERVER_TIME_ATOM, MULTIPLE, TIMESTAMP, ATOM_PAIR,
+    _NET_WM_NAME, WM_NAME, MANAGER, _XSETTINGS_SETTINGS,
+    libinput_Scroll_Methods_Available, XdndAware, XdndSelection, XdndTypeList,
+    XdndActionCopy, XdndActionMove, XdndActionLink, XdndActionAsk,
+    XdndActionPrivate, XdndActionList, XdndActionDescription, XdndProxy,
+    XdndEnter, XdndPosition, XdndStatus, XdndLeave, XdndDrop, XdndFinished,
+    _NET_WM_FRAME_TIMINGS, _NET_WM_BYPASS_COMPOSITOR, WM_STATE,
+    _NET_WM_WINDOW_TYPE, _NET_WM_WINDOW_TYPE_MENU, _NET_WM_WINDOW_TYPE_DND,
+    CONNECTOR_ID, _NET_WM_PID, _NET_WM_PING, libinput_Scrolling_Pixel_Distance,
+    _NET_ACTIVE_WINDOW;
 
 XrmQuark resource_quark, app_quark, QString;
 
@@ -145,162 +98,154 @@ XrmQuark resource_quark, app_quark, QString;
 static AtomTable atom_table;
 
 static unsigned int
-HashAtomString (const char *string)
+HashAtomString(const char *string)
 {
-  unsigned int i;
+	unsigned int i;
 
-  i = 3323198485ul;
-  for (; *string; ++string)
-    {
-      i ^= *string;
-      i *= 0x5bd1e995;
-      i ^= i >> 15;
-    }
-  return i;
+	i = 3323198485ul;
+	for (; *string; ++string) {
+		i ^= *string;
+		i *= 0x5bd1e995;
+		i ^= i >> 15;
+	}
+	return i;
 }
 
 Atom
-InternAtom (const char *name)
+InternAtom(const char *name)
 {
-  Atom atom;
-  unsigned int hash;
-  ptrdiff_t bucket_length, i;
+	Atom	     atom;
+	unsigned int hash;
+	ptrdiff_t    bucket_length, i;
 
-  hash = HashAtomString (name) % AtomTableSize;
-  bucket_length = atom_table.atoms_length[hash];
+	hash	      = HashAtomString(name) % AtomTableSize;
+	bucket_length = atom_table.atoms_length[hash];
 
-  for (i = 0; i < bucket_length; ++i)
-    {
-      if (!strcmp (atom_table.names[hash][i], name))
-	return atom_table.atoms[hash][i];
-    }
+	for (i = 0; i < bucket_length; ++i) {
+		if (!strcmp(atom_table.names[hash][i], name))
+			return atom_table.atoms[hash][i];
+	}
 
-  atom = XInternAtom (compositor.display, name, False);
+	atom = XInternAtom(compositor.display, name, False);
 
-  atom_table.atoms_length[hash] = ++bucket_length;
-  atom_table.names[hash]
-    = XLRealloc (atom_table.names[hash],
-		 bucket_length * sizeof *atom_table.names);
-  atom_table.atoms[hash]
-    = XLRealloc (atom_table.atoms[hash],
-		 bucket_length * sizeof *atom_table.atoms);
-  atom_table.names[hash][bucket_length - 1] = XLStrdup (name);
-  atom_table.atoms[hash][bucket_length - 1] = atom;
-  return atom;
+	atom_table.atoms_length[hash] = ++bucket_length;
+	atom_table.names[hash]	      = XLRealloc(atom_table.names[hash],
+		   bucket_length * sizeof *atom_table.names);
+	atom_table.atoms[hash]	      = XLRealloc(atom_table.atoms[hash],
+		   bucket_length * sizeof *atom_table.atoms);
+	atom_table.names[hash][bucket_length - 1] = XLStrdup(name);
+	atom_table.atoms[hash][bucket_length - 1] = atom;
+	return atom;
 }
 
 void
-ProvideAtom (const char *name, Atom atom)
+ProvideAtom(const char *name, Atom atom)
 {
-  unsigned int hash;
-  ptrdiff_t bucket_length, i;
+	unsigned int hash;
+	ptrdiff_t    bucket_length, i;
 
-  hash = HashAtomString (name) % AtomTableSize;
-  bucket_length = atom_table.atoms_length[hash];
+	hash	      = HashAtomString(name) % AtomTableSize;
+	bucket_length = atom_table.atoms_length[hash];
 
-  for (i = 0; i < bucket_length; ++i)
-    {
-      if (!strcmp (atom_table.names[hash][i], name))
-	/* The atom already exists; there is no need to update it.  */
-	return;
-    }
+	for (i = 0; i < bucket_length; ++i) {
+		if (!strcmp(atom_table.names[hash][i], name))
+			/* The atom already exists; there is no need to update
+			 * it.  */
+			return;
+	}
 
-  atom_table.atoms_length[hash] = ++bucket_length;
-  atom_table.names[hash]
-    = XLRealloc (atom_table.names[hash],
-		 bucket_length * sizeof *atom_table.names);
-  atom_table.atoms[hash]
-    = XLRealloc (atom_table.atoms[hash],
-		 bucket_length * sizeof *atom_table.atoms);
-  atom_table.names[hash][bucket_length - 1] = XLStrdup (name);
-  atom_table.atoms[hash][bucket_length - 1] = atom;
+	atom_table.atoms_length[hash] = ++bucket_length;
+	atom_table.names[hash]	      = XLRealloc(atom_table.names[hash],
+		   bucket_length * sizeof *atom_table.names);
+	atom_table.atoms[hash]	      = XLRealloc(atom_table.atoms[hash],
+		   bucket_length * sizeof *atom_table.atoms);
+	atom_table.names[hash][bucket_length - 1] = XLStrdup(name);
+	atom_table.atoms[hash][bucket_length - 1] = atom;
 }
 
 void
-XLInitAtoms (void)
+XLInitAtoms(void)
 {
-  Atom atoms[ArrayElements (names)];
+	Atom atoms[ArrayElements(names)];
 
-  if (!XInternAtoms (compositor.display, (char **) names,
-		     ArrayElements (names), False,
-		     atoms))
-    {
-      fprintf (stderr, "Failed to intern X atoms\n");
-      exit (1);
-    }
+	if (!XInternAtoms(compositor.display, (char **)names,
+		ArrayElements(names), False, atoms)) {
+		fprintf(stderr, "Failed to intern X atoms\n");
+		exit(1);
+	}
 
-  _NET_WM_OPAQUE_REGION = atoms[0];
-  _XL_BUFFER_RELEASE = atoms[1];
-  _NET_WM_SYNC_REQUEST_COUNTER = atoms[2];
-  _NET_WM_FRAME_DRAWN = atoms[3];
-  WM_DELETE_WINDOW = atoms[4];
-  WM_PROTOCOLS = atoms[5];
-  _NET_SUPPORTING_WM_CHECK = atoms[6];
-  _NET_SUPPORTED = atoms[7];
-  _NET_WM_SYNC_REQUEST = atoms[8];
-  _MOTIF_WM_HINTS = atoms[9];
-  _NET_WM_STATE_MAXIMIZED_VERT = atoms[10];
-  _NET_WM_STATE_MAXIMIZED_HORZ = atoms[11];
-  _NET_WM_STATE_FOCUSED = atoms[12];
-  _NET_WM_STATE_FULLSCREEN = atoms[13];
-  _NET_WM_STATE = atoms[14];
-  _NET_WM_MOVERESIZE = atoms[15];
-  _GTK_FRAME_EXTENTS = atoms[16];
-  WM_TRANSIENT_FOR = atoms[17];
-  _XL_DMA_BUF_CREATED = atoms[18];
-  _GTK_SHOW_WINDOW_MENU = atoms[19];
-  _NET_WM_ALLOWED_ACTIONS = atoms[20];
-  _NET_WM_ACTION_FULLSCREEN = atoms[21];
-  _NET_WM_ACTION_MAXIMIZE_HORZ = atoms[22];
-  _NET_WM_ACTION_MAXIMIZE_VERT = atoms[23];
-  _NET_WM_ACTION_MINIMIZE = atoms[24];
-  INCR = atoms[25];
-  CLIPBOARD = atoms[26];
-  TARGETS = atoms[27];
-  UTF8_STRING = atoms[28];
-  _XL_SERVER_TIME_ATOM = atoms[29];
-  MULTIPLE = atoms[30];
-  TIMESTAMP = atoms[31];
-  ATOM_PAIR = atoms[32];
-  _NET_WM_NAME = atoms[33];
-  WM_NAME = atoms[34];
-  MANAGER = atoms[35];
-  _XSETTINGS_SETTINGS = atoms[36];
-  libinput_Scroll_Methods_Available = atoms[37];
-  XdndAware = atoms[38];
-  XdndSelection = atoms[39];
-  XdndTypeList = atoms[40];
-  XdndActionCopy = atoms[41];
-  XdndActionMove = atoms[42];
-  XdndActionLink = atoms[43];
-  XdndActionAsk = atoms[44];
-  XdndActionPrivate = atoms[45];
-  XdndActionList = atoms[46];
-  XdndActionDescription = atoms[47];
-  XdndProxy = atoms[48];
-  XdndEnter = atoms[49];
-  XdndPosition = atoms[50];
-  XdndStatus = atoms[51];
-  XdndLeave = atoms[52];
-  XdndDrop = atoms[53];
-  XdndFinished = atoms[54];
-  _NET_WM_FRAME_TIMINGS = atoms[55];
-  _NET_WM_BYPASS_COMPOSITOR = atoms[56];
-  WM_STATE = atoms[57];
-  _NET_WM_WINDOW_TYPE = atoms[58];
-  _NET_WM_WINDOW_TYPE_MENU = atoms[59];
-  _NET_WM_WINDOW_TYPE_DND = atoms[60];
-  CONNECTOR_ID = atoms[61];
-  _NET_WM_PID = atoms[62];
-  _NET_WM_PING = atoms[63];
-  libinput_Scrolling_Pixel_Distance = atoms[64];
-  _NET_ACTIVE_WINDOW = atoms[65];
+	_NET_WM_OPAQUE_REGION		  = atoms[0];
+	_XL_BUFFER_RELEASE		  = atoms[1];
+	_NET_WM_SYNC_REQUEST_COUNTER	  = atoms[2];
+	_NET_WM_FRAME_DRAWN		  = atoms[3];
+	WM_DELETE_WINDOW		  = atoms[4];
+	WM_PROTOCOLS			  = atoms[5];
+	_NET_SUPPORTING_WM_CHECK	  = atoms[6];
+	_NET_SUPPORTED			  = atoms[7];
+	_NET_WM_SYNC_REQUEST		  = atoms[8];
+	_MOTIF_WM_HINTS			  = atoms[9];
+	_NET_WM_STATE_MAXIMIZED_VERT	  = atoms[10];
+	_NET_WM_STATE_MAXIMIZED_HORZ	  = atoms[11];
+	_NET_WM_STATE_FOCUSED		  = atoms[12];
+	_NET_WM_STATE_FULLSCREEN	  = atoms[13];
+	_NET_WM_STATE			  = atoms[14];
+	_NET_WM_MOVERESIZE		  = atoms[15];
+	_GTK_FRAME_EXTENTS		  = atoms[16];
+	WM_TRANSIENT_FOR		  = atoms[17];
+	_XL_DMA_BUF_CREATED		  = atoms[18];
+	_GTK_SHOW_WINDOW_MENU		  = atoms[19];
+	_NET_WM_ALLOWED_ACTIONS		  = atoms[20];
+	_NET_WM_ACTION_FULLSCREEN	  = atoms[21];
+	_NET_WM_ACTION_MAXIMIZE_HORZ	  = atoms[22];
+	_NET_WM_ACTION_MAXIMIZE_VERT	  = atoms[23];
+	_NET_WM_ACTION_MINIMIZE		  = atoms[24];
+	INCR				  = atoms[25];
+	CLIPBOARD			  = atoms[26];
+	TARGETS				  = atoms[27];
+	UTF8_STRING			  = atoms[28];
+	_XL_SERVER_TIME_ATOM		  = atoms[29];
+	MULTIPLE			  = atoms[30];
+	TIMESTAMP			  = atoms[31];
+	ATOM_PAIR			  = atoms[32];
+	_NET_WM_NAME			  = atoms[33];
+	WM_NAME				  = atoms[34];
+	MANAGER				  = atoms[35];
+	_XSETTINGS_SETTINGS		  = atoms[36];
+	libinput_Scroll_Methods_Available = atoms[37];
+	XdndAware			  = atoms[38];
+	XdndSelection			  = atoms[39];
+	XdndTypeList			  = atoms[40];
+	XdndActionCopy			  = atoms[41];
+	XdndActionMove			  = atoms[42];
+	XdndActionLink			  = atoms[43];
+	XdndActionAsk			  = atoms[44];
+	XdndActionPrivate		  = atoms[45];
+	XdndActionList			  = atoms[46];
+	XdndActionDescription		  = atoms[47];
+	XdndProxy			  = atoms[48];
+	XdndEnter			  = atoms[49];
+	XdndPosition			  = atoms[50];
+	XdndStatus			  = atoms[51];
+	XdndLeave			  = atoms[52];
+	XdndDrop			  = atoms[53];
+	XdndFinished			  = atoms[54];
+	_NET_WM_FRAME_TIMINGS		  = atoms[55];
+	_NET_WM_BYPASS_COMPOSITOR	  = atoms[56];
+	WM_STATE			  = atoms[57];
+	_NET_WM_WINDOW_TYPE		  = atoms[58];
+	_NET_WM_WINDOW_TYPE_MENU	  = atoms[59];
+	_NET_WM_WINDOW_TYPE_DND		  = atoms[60];
+	CONNECTOR_ID			  = atoms[61];
+	_NET_WM_PID			  = atoms[62];
+	_NET_WM_PING			  = atoms[63];
+	libinput_Scrolling_Pixel_Distance = atoms[64];
+	_NET_ACTIVE_WINDOW		  = atoms[65];
 
-  /* This is automatically generated.  */
-  DirectTransferAtomInit (atoms, 66);
+	/* This is automatically generated.  */
+	DirectTransferAtomInit(atoms, 66);
 
-  /* Now, initialize quarks.  */
-  resource_quark = XrmPermStringToQuark (compositor.resource_name);
-  app_quark = XrmPermStringToQuark (compositor.app_name);
-  QString = XrmPermStringToQuark ("String");
+	/* Now, initialize quarks.  */
+	resource_quark = XrmPermStringToQuark(compositor.resource_name);
+	app_quark      = XrmPermStringToQuark(compositor.app_name);
+	QString	       = XrmPermStringToQuark("String");
 }

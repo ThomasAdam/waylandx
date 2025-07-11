@@ -25,355 +25,331 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 typedef struct _ShortcutInhibitDataRecord ShortcutInhibitDataRecord;
 typedef struct _KeyboardShortcutInhibitor KeyboardShortcutInhibitor;
 
-enum
-  {
-    IsGrabbed = 1,
-  };
-
-struct _KeyboardShortcutInhibitor
-{
-  /* The surface to which the inhibitor applies.  */
-  Surface *surface;
-
-  /* The associated struct wl_resource.  */
-  struct wl_resource *resource;
-
-  /* The next and last shortcut inhibitors in this list.  Not valid if
-     surface is NULL.  */
-  KeyboardShortcutInhibitor *next, *last;
-
-  /* The seat.  */
-  Seat *seat;
-
-  /* The seat destruction key.  */
-  void *seat_key;
-
-  /* Some flags.  */
-  int flags;
+enum {
+	IsGrabbed = 1,
 };
 
-struct _ShortcutInhibitDataRecord
-{
-  /* List of all keyboard shortcut inhibitors.  */
-  KeyboardShortcutInhibitor inhibitors;
+struct _KeyboardShortcutInhibitor {
+	/* The surface to which the inhibitor applies.  */
+	Surface *surface;
+
+	/* The associated struct wl_resource.  */
+	struct wl_resource *resource;
+
+	/* The next and last shortcut inhibitors in this list.  Not valid if
+	   surface is NULL.  */
+	KeyboardShortcutInhibitor *next, *last;
+
+	/* The seat.  */
+	Seat *seat;
+
+	/* The seat destruction key.  */
+	void *seat_key;
+
+	/* Some flags.  */
+	int flags;
+};
+
+struct _ShortcutInhibitDataRecord {
+	/* List of all keyboard shortcut inhibitors.  */
+	KeyboardShortcutInhibitor inhibitors;
 };
 
 /* The zwp_keyboard_shortcuts_inhibit_manager_v1 global.  */
 struct wl_global *inhibit_manager_global;
 
 static void
-Destroy (struct wl_client *client, struct wl_resource *resource)
+Destroy(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
 static void
-FreeShortcutInhibitData (void *data)
+FreeShortcutInhibitData(void *data)
 {
-  ShortcutInhibitDataRecord *record;
-  KeyboardShortcutInhibitor *inhibitor;
+	ShortcutInhibitDataRecord *record;
+	KeyboardShortcutInhibitor *inhibitor;
 
-  record = data;
+	record = data;
 
-  /* Clear the surface of every attached keyboard shortcut
-     inhibitor.  */
-  inhibitor = record->inhibitors.next;
-  XLAssert (inhibitor != NULL);
+	/* Clear the surface of every attached keyboard shortcut
+	   inhibitor.  */
+	inhibitor = record->inhibitors.next;
+	XLAssert(inhibitor != NULL);
 
-  while (inhibitor != &record->inhibitors)
-    {
-      inhibitor->surface = NULL;
+	while (inhibitor != &record->inhibitors) {
+		inhibitor->surface = NULL;
 
-      /* Move to the next inhibitor.  */
-      inhibitor = inhibitor->next;
-    }
+		/* Move to the next inhibitor.  */
+		inhibitor = inhibitor->next;
+	}
 }
 
 static void
-InitShortcutInhibitData (ShortcutInhibitDataRecord *data)
+InitShortcutInhibitData(ShortcutInhibitDataRecord *data)
 {
-  /* If data is already initialized, do nothing.  */
-  if (data->inhibitors.next)
-    return;
+	/* If data is already initialized, do nothing.  */
+	if (data->inhibitors.next)
+		return;
 
-  /* Otherwise, initialize the list of inhibitors.  */
-  data->inhibitors.next = &data->inhibitors;
-  data->inhibitors.last = &data->inhibitors;
+	/* Otherwise, initialize the list of inhibitors.  */
+	data->inhibitors.next = &data->inhibitors;
+	data->inhibitors.last = &data->inhibitors;
 }
 
 static KeyboardShortcutInhibitor *
-FindKeyboardShortcutInhibitor (Surface *surface, Seat *seat)
+FindKeyboardShortcutInhibitor(Surface *surface, Seat *seat)
 {
-  ShortcutInhibitDataRecord *data;
-  KeyboardShortcutInhibitor *inhibitor;
+	ShortcutInhibitDataRecord *data;
+	KeyboardShortcutInhibitor *inhibitor;
 
-  data = XLSurfaceFindClientData (surface, ShortcutInhibitData);
+	data = XLSurfaceFindClientData(surface, ShortcutInhibitData);
 
-  if (!data)
-    return NULL;
+	if (!data)
+		return NULL;
 
-  inhibitor = data->inhibitors.next;
-  while (inhibitor != &data->inhibitors)
-    {
-      if (inhibitor->seat == seat)
-	return inhibitor;
+	inhibitor = data->inhibitors.next;
+	while (inhibitor != &data->inhibitors) {
+		if (inhibitor->seat == seat)
+			return inhibitor;
 
-      inhibitor = data->inhibitors.next;
-    }
+		inhibitor = data->inhibitors.next;
+	}
 
-  /* There is no inhibitor for this seat on the given surface.  */
-  return NULL;
+	/* There is no inhibitor for this seat on the given surface.  */
+	return NULL;
 }
 
 static void
-DestroyKeyboardShortcutsInhibitor (struct wl_client *client,
-				   struct wl_resource *resource)
+DestroyKeyboardShortcutsInhibitor(struct wl_client *client,
+    struct wl_resource				   *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
-static struct zwp_keyboard_shortcuts_inhibitor_v1_interface inhibitor_impl =
-  {
-    .destroy = DestroyKeyboardShortcutsInhibitor,
-  };
+static struct zwp_keyboard_shortcuts_inhibitor_v1_interface inhibitor_impl = {
+	.destroy = DestroyKeyboardShortcutsInhibitor,
+};
 
 static void
-HandleResourceDestroy (struct wl_resource *resource)
+HandleResourceDestroy(struct wl_resource *resource)
 {
-  KeyboardShortcutInhibitor *inhibitor;
+	KeyboardShortcutInhibitor *inhibitor;
 
-  inhibitor = wl_resource_get_user_data (resource);
+	inhibitor = wl_resource_get_user_data(resource);
 
-  if (inhibitor->surface)
-    {
-      /* Unlink the inhibitor from its surroundings.  */
-      inhibitor->next->last = inhibitor->last;
-      inhibitor->last->next = inhibitor->next;
-    }
+	if (inhibitor->surface) {
+		/* Unlink the inhibitor from its surroundings.  */
+		inhibitor->next->last = inhibitor->last;
+		inhibitor->last->next = inhibitor->next;
+	}
 
-  if (inhibitor->seat)
-    {
-      /* Cancel the seat destruction callback.  */
-      XLSeatCancelDestroyListener (inhibitor->seat_key);
+	if (inhibitor->seat) {
+		/* Cancel the seat destruction callback.  */
+		XLSeatCancelDestroyListener(inhibitor->seat_key);
 
-      /* Ungrab the keyboard if it is grabbed.  */
-      if (inhibitor->flags & IsGrabbed)
-        XLSeatCancelExternalGrab (inhibitor->seat);
-    }
+		/* Ungrab the keyboard if it is grabbed.  */
+		if (inhibitor->flags & IsGrabbed)
+			XLSeatCancelExternalGrab(inhibitor->seat);
+	}
 
-  /* Free the inhibitor.  */
-  XLFree (inhibitor);
+	/* Free the inhibitor.  */
+	XLFree(inhibitor);
 }
 
 static void
-HandleSeatDestroy (void *data)
+HandleSeatDestroy(void *data)
 {
-  KeyboardShortcutInhibitor *inhibitor;
+	KeyboardShortcutInhibitor *inhibitor;
 
-  inhibitor = data;
+	inhibitor = data;
 
-  /* The seat was destroyed.  Unlink the inhibitor, then remove the
-     seat.  */
-  if (inhibitor->surface)
-    {
-      /* Unlink the inhibitor from its surroundings.  */
-      inhibitor->next->last = inhibitor->last;
-      inhibitor->last->next = inhibitor->next;
-    }
+	/* The seat was destroyed.  Unlink the inhibitor, then remove the
+	   seat.  */
+	if (inhibitor->surface) {
+		/* Unlink the inhibitor from its surroundings.  */
+		inhibitor->next->last = inhibitor->last;
+		inhibitor->last->next = inhibitor->next;
+	}
 
-  /* Clear the seat.  */
-  inhibitor->seat = NULL;
-  inhibitor->seat_key = NULL;
+	/* Clear the seat.  */
+	inhibitor->seat	    = NULL;
+	inhibitor->seat_key = NULL;
 }
 
-
-
 static void
-InhibitShortcuts (struct wl_client *client, struct wl_resource *resource,
-		  uint32_t id, struct wl_resource *surface_resource,
-		  struct wl_resource *seat_resource)
+InhibitShortcuts(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id, struct wl_resource *surface_resource,
+    struct wl_resource *seat_resource)
 {
-  ShortcutInhibitDataRecord *record;
-  Surface *surface;
-  Seat *seat;
-  KeyboardShortcutInhibitor *inhibitor;
-  struct wl_resource *dummy_resource;
+	ShortcutInhibitDataRecord *record;
+	Surface			  *surface;
+	Seat			  *seat;
+	KeyboardShortcutInhibitor *inhibitor;
+	struct wl_resource	  *dummy_resource;
 
-  surface = wl_resource_get_user_data (surface_resource);
-  seat = wl_resource_get_user_data (seat_resource);
+	surface = wl_resource_get_user_data(surface_resource);
+	seat	= wl_resource_get_user_data(seat_resource);
 
-  /* If the seat is inert, return an empty inhibitor.  */
-  if (XLSeatIsInert (seat))
-    {
-      dummy_resource
-	= wl_resource_create (client,
-			      &zwp_keyboard_shortcuts_inhibitor_v1_interface,
-			      wl_resource_get_version (resource), id);
+	/* If the seat is inert, return an empty inhibitor.  */
+	if (XLSeatIsInert(seat)) {
+		dummy_resource = wl_resource_create(client,
+		    &zwp_keyboard_shortcuts_inhibitor_v1_interface,
+		    wl_resource_get_version(resource), id);
 
-      if (!dummy_resource)
-	wl_resource_post_no_memory (resource);
-      else
-	wl_resource_set_implementation (dummy_resource, &inhibitor_impl,
-					NULL, NULL);
+		if (!dummy_resource)
+			wl_resource_post_no_memory(resource);
+		else
+			wl_resource_set_implementation(dummy_resource,
+			    &inhibitor_impl, NULL, NULL);
 
-      return;
-    }
+		return;
+	}
 
-  /* Check that there is no keyboard shortcut inhibitor already
-     present.  */
+	/* Check that there is no keyboard shortcut inhibitor already
+	   present.  */
 
-#define AlreadyInhibited				\
-  ZWP_KEYBOARD_SHORTCUTS_INHIBIT_MANAGER_V1_ERROR_ALREADY_INHIBITED
+#define AlreadyInhibited \
+	ZWP_KEYBOARD_SHORTCUTS_INHIBIT_MANAGER_V1_ERROR_ALREADY_INHIBITED
 
-  if (FindKeyboardShortcutInhibitor (surface, seat))
-    {
-      wl_resource_post_error (resource, AlreadyInhibited,
-			      "inhibitor already attached to surface and seat");
-      return;
-    }
+	if (FindKeyboardShortcutInhibitor(surface, seat)) {
+		wl_resource_post_error(resource, AlreadyInhibited,
+		    "inhibitor already attached to surface and seat");
+		return;
+	}
 
 #undef AlreadyInhibited
 
-  record = XLSurfaceGetClientData (surface, ShortcutInhibitData,
-				   sizeof *record,
-				   FreeShortcutInhibitData);
-  InitShortcutInhibitData (record);
+	record = XLSurfaceGetClientData(surface, ShortcutInhibitData,
+	    sizeof *record, FreeShortcutInhibitData);
+	InitShortcutInhibitData(record);
 
-  /* Allocate a new keyboard shortcut inhibitor.  */
-  inhibitor = XLSafeMalloc (sizeof *inhibitor);
+	/* Allocate a new keyboard shortcut inhibitor.  */
+	inhibitor = XLSafeMalloc(sizeof *inhibitor);
 
-  if (!inhibitor)
-    {
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+	if (!inhibitor) {
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  memset (inhibitor, 0, sizeof *inhibitor);
-  inhibitor->resource
-    = wl_resource_create (client,
-			  &zwp_keyboard_shortcuts_inhibitor_v1_interface,
-			  wl_resource_get_version (resource), id);
+	memset(inhibitor, 0, sizeof *inhibitor);
+	inhibitor->resource = wl_resource_create(client,
+	    &zwp_keyboard_shortcuts_inhibitor_v1_interface,
+	    wl_resource_get_version(resource), id);
 
-  if (!inhibitor->resource)
-    {
-      wl_resource_post_no_memory (resource);
-      XLFree (inhibitor);
-      return;
-    }
+	if (!inhibitor->resource) {
+		wl_resource_post_no_memory(resource);
+		XLFree(inhibitor);
+		return;
+	}
 
-  /* Link the inhibitor onto the list.  */
-  inhibitor->next = record->inhibitors.next;
-  inhibitor->last = &record->inhibitors;
-  record->inhibitors.next->last = inhibitor;
-  record->inhibitors.next = inhibitor;
+	/* Link the inhibitor onto the list.  */
+	inhibitor->next		      = record->inhibitors.next;
+	inhibitor->last		      = &record->inhibitors;
+	record->inhibitors.next->last = inhibitor;
+	record->inhibitors.next	      = inhibitor;
 
-  /* Attach the surface.  */
-  inhibitor->surface = surface;
+	/* Attach the surface.  */
+	inhibitor->surface = surface;
 
-  /* And the seat.  */
-  inhibitor->seat = seat;
-  inhibitor->seat_key
-    = XLSeatRunOnDestroy (seat, HandleSeatDestroy, inhibitor);
+	/* And the seat.  */
+	inhibitor->seat	    = seat;
+	inhibitor->seat_key = XLSeatRunOnDestroy(seat, HandleSeatDestroy,
+	    inhibitor);
 
-  /* Attach the resource implementation.  */
-  wl_resource_set_implementation (inhibitor->resource, &inhibitor_impl,
-				  inhibitor, HandleResourceDestroy);
+	/* Attach the resource implementation.  */
+	wl_resource_set_implementation(inhibitor->resource, &inhibitor_impl,
+	    inhibitor, HandleResourceDestroy);
 
-  /* If the given surface is the seat's focus, try to apply the grab
-     now.  */
-  if (surface == XLSeatGetFocus (seat)
-      && XLSeatApplyExternalGrab (seat, surface))
-    {
-      /* The external grab is now active, so send the active
-	 signal.  */
-      zwp_keyboard_shortcuts_inhibitor_v1_send_active (inhibitor->resource);
+	/* If the given surface is the seat's focus, try to apply the grab
+	   now.  */
+	if (surface == XLSeatGetFocus(seat) &&
+	    XLSeatApplyExternalGrab(seat, surface)) {
+		/* The external grab is now active, so send the active
+		   signal.  */
+		zwp_keyboard_shortcuts_inhibitor_v1_send_active(
+		    inhibitor->resource);
 
-      /* Mark the inhibitor as active.  */
-      inhibitor->flags |= IsGrabbed;
-    }
+		/* Mark the inhibitor as active.  */
+		inhibitor->flags |= IsGrabbed;
+	}
 }
 
-static struct zwp_keyboard_shortcuts_inhibit_manager_v1_interface manager_impl =
-  {
-    .inhibit_shortcuts = InhibitShortcuts,
-    .destroy = Destroy,
-  };
+static struct zwp_keyboard_shortcuts_inhibit_manager_v1_interface
+    manager_impl = {
+	    .inhibit_shortcuts = InhibitShortcuts,
+	    .destroy	       = Destroy,
+    };
 
 static void
-HandleBind (struct wl_client *client, void *data, uint32_t version,
-	    uint32_t id)
+HandleBind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-  struct wl_resource *resource;
+	struct wl_resource *resource;
 
-  resource
-    = wl_resource_create (client,
-			  &zwp_keyboard_shortcuts_inhibit_manager_v1_interface,
-			  version, id);
+	resource = wl_resource_create(client,
+	    &zwp_keyboard_shortcuts_inhibit_manager_v1_interface, version, id);
 
-  if (!resource)
-    {
-      wl_client_post_no_memory (client);
-      return;
-    }
+	if (!resource) {
+		wl_client_post_no_memory(client);
+		return;
+	}
 
-  wl_resource_set_implementation (resource, &manager_impl, NULL, NULL);
+	wl_resource_set_implementation(resource, &manager_impl, NULL, NULL);
 }
 
 void
-XLInitKeyboardShortcutsInhibit (void)
+XLInitKeyboardShortcutsInhibit(void)
 {
-  inhibit_manager_global
-    = wl_global_create (compositor.wl_display,
-			&zwp_keyboard_shortcuts_inhibit_manager_v1_interface,
-			1, NULL, HandleBind);
+	inhibit_manager_global = wl_global_create(compositor.wl_display,
+	    &zwp_keyboard_shortcuts_inhibit_manager_v1_interface, 1, NULL,
+	    HandleBind);
 }
 
 void
-XLCheckShortcutInhibition (Seat *seat, Surface *surface)
+XLCheckShortcutInhibition(Seat *seat, Surface *surface)
 {
-  KeyboardShortcutInhibitor *inhibitor;
+	KeyboardShortcutInhibitor *inhibitor;
 
-  /* If SURFACE has a shortcut inhibitor, inhibit shortcuts and send
-     the active signal.  */
+	/* If SURFACE has a shortcut inhibitor, inhibit shortcuts and send
+	   the active signal.  */
 
-  inhibitor = FindKeyboardShortcutInhibitor (surface, seat);
+	inhibitor = FindKeyboardShortcutInhibitor(surface, seat);
 
-  if (!inhibitor)
-    return;
+	if (!inhibitor)
+		return;
 
-  /* Try to apply an external grab.  */
-  if (XLSeatApplyExternalGrab (seat, surface))
-    {
-      /* The external grab is now active, so send the active
-	 signal.  */
-      zwp_keyboard_shortcuts_inhibitor_v1_send_active (inhibitor->resource);
+	/* Try to apply an external grab.  */
+	if (XLSeatApplyExternalGrab(seat, surface)) {
+		/* The external grab is now active, so send the active
+		   signal.  */
+		zwp_keyboard_shortcuts_inhibitor_v1_send_active(
+		    inhibitor->resource);
 
-      /* Mark the inhibitor as active.  */
-      inhibitor->flags |= IsGrabbed;
-    }
-  else if (inhibitor->flags & IsGrabbed)
-    {
-      /* The grab failed, and inhibitor was already grabbed (can that
-	 even happen?) */
-      inhibitor->flags &= ~IsGrabbed;
-      zwp_keyboard_shortcuts_inhibitor_v1_send_inactive (inhibitor->resource);
-    }
+		/* Mark the inhibitor as active.  */
+		inhibitor->flags |= IsGrabbed;
+	} else if (inhibitor->flags & IsGrabbed) {
+		/* The grab failed, and inhibitor was already grabbed (can that
+		   even happen?) */
+		inhibitor->flags &= ~IsGrabbed;
+		zwp_keyboard_shortcuts_inhibitor_v1_send_inactive(
+		    inhibitor->resource);
+	}
 }
 
 void
-XLReleaseShortcutInhibition (Seat *seat, Surface *surface)
+XLReleaseShortcutInhibition(Seat *seat, Surface *surface)
 {
-  KeyboardShortcutInhibitor *inhibitor;
+	KeyboardShortcutInhibitor *inhibitor;
 
-  inhibitor = FindKeyboardShortcutInhibitor (surface, seat);
+	inhibitor = FindKeyboardShortcutInhibitor(surface, seat);
 
-  if (!inhibitor || !(inhibitor->flags & IsGrabbed))
-    return;
+	if (!inhibitor || !(inhibitor->flags & IsGrabbed))
+		return;
 
-  /* Cancel the grab.  */
-  XLSeatCancelExternalGrab (seat);
+	/* Cancel the grab.  */
+	XLSeatCancelExternalGrab(seat);
 
-  /* Mark the inhibitor as no longer holding a grab.  */
-  inhibitor->flags &= IsGrabbed;
-  zwp_keyboard_shortcuts_inhibitor_v1_send_inactive (inhibitor->resource);
+	/* Mark the inhibitor as no longer holding a grab.  */
+	inhibitor->flags &= IsGrabbed;
+	zwp_keyboard_shortcuts_inhibitor_v1_send_inactive(inhibitor->resource);
 }

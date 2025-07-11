@@ -45,7 +45,7 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
    Then, the contents of the list will be:
 
-              [A], [D], [E], [B], [F], [G], [C], [H], [I]
+	      [A], [D], [E], [B], [F], [G], [C], [H], [I]
 
    To aid in updating the linked list, each view maintains a pointer
    to the link in the list containing the view itself, and the link
@@ -53,9 +53,9 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
    view) of the view.  So, in the above example, the view "A" will
    also point to:
 
-               + = link pointer of "A"
-                         + = last inferior pointer of "A"
-              [A], [D], [E], [B], [F], [G], [C], [H], [I]
+	       + = link pointer of "A"
+			 + = last inferior pointer of "A"
+	      [A], [D], [E], [B], [F], [G], [C], [H], [I]
 
    To add view to another view, the view is first appended to the end
    of the other view's list of children, and the links between its
@@ -78,16 +78,16 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
    pointer), resulting in the subcompositor's list of inferiors
    looking like this:
 
-            +              * = link pointer of "J"
-                      +    * = last inferior pointer of "J"
-           [A], [D], [E], [J], [B], [F], [G], [C], [H], [I]
+	    +              * = link pointer of "J"
+		      +    * = last inferior pointer of "J"
+	   [A], [D], [E], [J], [B], [F], [G], [C], [H], [I]
 
    Finally, the inferior pointer of each of "E"'s parents that
    previously pointed to "E" is updated, like so:
 
-            +               *
-                           +*
-           [A], [D], [E], [J], [B], [F], [G], [C], [H], [I]
+	    +               *
+			   +*
+	   [A], [D], [E], [J], [B], [F], [G], [C], [H], [I]
 
    A similar procedure applies to adding a view to the subcompositor
    itself.
@@ -101,10 +101,10 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
    view.  Unlinking "A" from the above hierarchy would produce two
    separate lists:
 
-            +               *
-                           +*
-           [A], [D], [E], [J] = the implicit sub-list of "A"
-                               [B], [F], [G], [C], [H], [I] = the
+	    +               *
+			   +*
+	   [A], [D], [E], [J] = the implicit sub-list of "A"
+			       [B], [F], [G], [C], [H], [I] = the
 			       subcompositor inferior list
 
    Finally, the inferior pointer of all parents pointing to the
@@ -117,275 +117,259 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
    manually by moving such children to a separate sibling of the
    parent that is always stacked below that view.  */
 
-enum
-  {
-    /* This means that the view hierarchy has changed, and all
-       subcompositing optimisations should be skipped.  */
-    SubcompositorIsGarbaged	   = 1,
-    /* This means that the opaque region of one of the views
-       changed.  */
-    SubcompositorIsOpaqueDirty	   = (1 << 2),
-    /* This means that the input region of one of the views
-       changed.  */
-    SubcompositorIsInputDirty	   = (1 << 3),
-    /* This means that there is at least one unmapped view in this
-       subcompositor.  */
-    SubcompositorIsPartiallyMapped = (1 << 4),
-    /* This means that the subcompositor has a target attached.  */
-    SubcompositorIsTargetAttached  = (1 << 5),
-    /* This means the subcompositor is always garbaged.  */
-    SubcompositorIsAlwaysGarbaged  = (1 << 6),
-  };
-
-#define IsGarbaged(subcompositor)				\
-  ((subcompositor)->state & SubcompositorIsGarbaged)
-#define SetGarbaged(subcompositor)				\
-  ((subcompositor)->state |= SubcompositorIsGarbaged)
-
-#define SetOpaqueDirty(subcompositor)				\
-  ((subcompositor)->state |= SubcompositorIsOpaqueDirty)
-#define IsOpaqueDirty(subcompositor)				\
-  ((subcompositor)->state & SubcompositorIsOpaqueDirty)
-
-#define SetInputDirty(subcompositor)				\
-  ((subcompositor)->state |= SubcompositorIsInputDirty)
-#define IsInputDirty(subcompositor)				\
-  ((subcompositor)->state & SubcompositorIsInputDirty)
-
-#define SetPartiallyMapped(subcompositor)			\
-  ((subcompositor)->state |= SubcompositorIsPartiallyMapped)
-#define IsPartiallyMapped(subcompositor)			\
-  ((subcompositor)->state & SubcompositorIsPartiallyMapped)
-
-#define SetTargetAttached(subcompositor)			\
-  ((subcompositor)->state |= SubcompositorIsTargetAttached)
-#define IsTargetAttached(subcompositor)				\
-  ((subcompositor)->state & SubcompositorIsTargetAttached)
-
-#define SetAlwaysGarbaged(subcompositor)			\
-  ((subcompositor)->state |= SubcompositorIsAlwaysGarbaged)
-#define IsAlwaysGarbaged(subcompositor)				\
-  ((subcompositor)->state & SubcompositorIsAlwaysGarbaged)
-
-enum
-  {
-    /* This means that the view and all its inferiors should be
-       skipped in bounds computation, input tracking, et cetera.  */
-    ViewIsUnmapped		= 1,
-    /* This means that the view has a viewport specifying its size,
-       effectively decoupling its relation to the buffer width	and
-       height.  */
-    ViewIsViewported		= 1 << 2,
-    /* Whether or not damage can be trusted.  When set, non-buffer
-       damage cannot be trusted, as the view transform changed.  */
-    ViewIsPreviouslyTransformed = 1 << 3,
-  };
-
-#define IsViewUnmapped(view)			\
-  ((view)->flags & ViewIsUnmapped)
-#define SetUnmapped(view)			\
-  ((view)->flags |= ViewIsUnmapped)
-#define ClearUnmapped(view)			\
-  ((view)->flags &= ~ViewIsUnmapped)
-
-#define IsViewported(view)			\
-  ((view)->flags & ViewIsViewported)
-#define SetViewported(view)			\
-  ((view)->flags |= ViewIsViewported)
-#define ClearViewported(view)			\
-  ((view)->flags &= ~ViewIsViewported)		\
-
-#define IsPreviouslyTransformed(view)			\
-  ((view)->flags & ViewIsPreviouslyTransformed)
-#define SetPreviouslyTransformed(view)			\
-  ((view)->flags |= ViewIsPreviouslyTransformed)
-#define ClearPreviouslyTransformed(view)		\
-  ((view)->flags &= ~ViewIsPreviouslyTransformed)
-
-struct _List
-{
-  /* Pointer to the next element of this list.
-     This list itself if this is the sentinel link.  */
-  List *next;
-
-  /* Pointer to the last element of this list.
-     This list itself if this is the sentinel link.  */
-  List *last;
-
-  /* The view of this list.  */
-  View *view;
+enum {
+	/* This means that the view hierarchy has changed, and all
+	   subcompositing optimisations should be skipped.  */
+	SubcompositorIsGarbaged = 1,
+	/* This means that the opaque region of one of the views
+	   changed.  */
+	SubcompositorIsOpaqueDirty = (1 << 2),
+	/* This means that the input region of one of the views
+	   changed.  */
+	SubcompositorIsInputDirty = (1 << 3),
+	/* This means that there is at least one unmapped view in this
+	   subcompositor.  */
+	SubcompositorIsPartiallyMapped = (1 << 4),
+	/* This means that the subcompositor has a target attached.  */
+	SubcompositorIsTargetAttached = (1 << 5),
+	/* This means the subcompositor is always garbaged.  */
+	SubcompositorIsAlwaysGarbaged = (1 << 6),
 };
 
-struct _View
-{
-  /* Subcompositor this view belongs to.  NULL at first; callers are
-     supposed to call ViewSetSubcompositor before inserting a view
-     into a compositor.  */
-  Subcompositor *subcompositor;
+#define IsGarbaged(subcompositor) \
+	((subcompositor)->state & SubcompositorIsGarbaged)
+#define SetGarbaged(subcompositor) \
+	((subcompositor)->state |= SubcompositorIsGarbaged)
 
-  /* Pointer to the parent view.  NULL if the parent is the
-     subcompositor itself.  */
-  View *parent;
+#define SetOpaqueDirty(subcompositor) \
+	((subcompositor)->state |= SubcompositorIsOpaqueDirty)
+#define IsOpaqueDirty(subcompositor) \
+	((subcompositor)->state & SubcompositorIsOpaqueDirty)
 
-  /* Pointer to the link containing the view itself.  */
-  List *link;
+#define SetInputDirty(subcompositor) \
+	((subcompositor)->state |= SubcompositorIsInputDirty)
+#define IsInputDirty(subcompositor) \
+	((subcompositor)->state & SubcompositorIsInputDirty)
 
-  /* Pointer to another such link used in the view hierarchy.  */
-  List *self;
+#define SetPartiallyMapped(subcompositor) \
+	((subcompositor)->state |= SubcompositorIsPartiallyMapped)
+#define IsPartiallyMapped(subcompositor) \
+	((subcompositor)->state & SubcompositorIsPartiallyMapped)
 
-  /* Pointer to the link containing the view's last inferior.  */
-  List *inferior;
+#define SetTargetAttached(subcompositor) \
+	((subcompositor)->state |= SubcompositorIsTargetAttached)
+#define IsTargetAttached(subcompositor) \
+	((subcompositor)->state & SubcompositorIsTargetAttached)
 
-  /* List of children.  */
-  List *children;
+#define SetAlwaysGarbaged(subcompositor) \
+	((subcompositor)->state |= SubcompositorIsAlwaysGarbaged)
+#define IsAlwaysGarbaged(subcompositor) \
+	((subcompositor)->state & SubcompositorIsAlwaysGarbaged)
 
-  /* The end of that list.  */
-  List *children_last;
-
-  /* Buffer data.  */
-
-  /* Width and height of the view.  Not valid until
-     ViewAfterSizeUpdate!  */
-  int width, height;
-
-  /* The buffer associated with this view, or None if nothing is
-     attached.  */
-  ExtBuffer *buffer;
-
-  /* Function called upon the view potentially being resized.  */
-  void (*maybe_resized) (View *);
-
-  /* Some data associated with this view.  Can be a surface or
-     something else.  */
-  void *data;
-
-  /* Culling data; this is not valid after drawing completes.  */
-  pixman_region32_t *cull_region;
-
-  /* The damaged and opaque regions.  */
-  pixman_region32_t damage, opaque;
-
-  /* The input region.  */
-  pixman_region32_t input;
-
-  /* The position of this view relative to its parent.  */
-  int x, y;
-
-  /* The absolute position of this view relative to the subcompositor
-     (or topmost parent if the view hierarchy is detached).  */
-  int abs_x, abs_y;
-
-  /* The scale of this view.  */
-  int scale;
-
-  /* Flags; whether or not this view is unmapped, etc.  */
-  int flags;
-
-  /* Any transform associated with this view.  */
-  BufferTransform transform;
-
-  /* The viewport data.  */
-  double src_x, src_y, crop_width, crop_height, dest_width, dest_height;
-
-  /* Fractional offset applied to the view contents and damage during
-     compositing.  */
-  double fract_x, fract_y;
+enum {
+	/* This means that the view and all its inferiors should be
+	   skipped in bounds computation, input tracking, et cetera.  */
+	ViewIsUnmapped = 1,
+	/* This means that the view has a viewport specifying its size,
+	   effectively decoupling its relation to the buffer width	and
+	   height.  */
+	ViewIsViewported = 1 << 2,
+	/* Whether or not damage can be trusted.  When set, non-buffer
+	   damage cannot be trusted, as the view transform changed.  */
+	ViewIsPreviouslyTransformed = 1 << 3,
 };
 
-struct _SubcompositorDestroyCallback
-{
-  /* Function run upon the subcompositor being destroyed.  */
-  void (*destroy_func) (void *);
+#define IsViewUnmapped(view) ((view)->flags & ViewIsUnmapped)
+#define SetUnmapped(view) ((view)->flags |= ViewIsUnmapped)
+#define ClearUnmapped(view) ((view)->flags &= ~ViewIsUnmapped)
 
-  /* Data for that function.  */
-  void *data;
+#define IsViewported(view) ((view)->flags & ViewIsViewported)
+#define SetViewported(view) ((view)->flags |= ViewIsViewported)
+#define ClearViewported(view) ((view)->flags &= ~ViewIsViewported)
 
-  /* The next and last callbacks.  */
-  SubcompositorDestroyCallback *next, *last;
+#define IsPreviouslyTransformed(view) \
+	((view)->flags & ViewIsPreviouslyTransformed)
+#define SetPreviouslyTransformed(view) \
+	((view)->flags |= ViewIsPreviouslyTransformed)
+#define ClearPreviouslyTransformed(view) \
+	((view)->flags &= ~ViewIsPreviouslyTransformed)
+
+struct _List {
+	/* Pointer to the next element of this list.
+	   This list itself if this is the sentinel link.  */
+	List *next;
+
+	/* Pointer to the last element of this list.
+	   This list itself if this is the sentinel link.  */
+	List *last;
+
+	/* The view of this list.  */
+	View *view;
 };
 
-struct _Subcompositor
-{
-  /* List of all inferiors in compositing order.  */
-  List *inferiors, *last;
+struct _View {
+	/* Subcompositor this view belongs to.  NULL at first; callers are
+	   supposed to call ViewSetSubcompositor before inserting a view
+	   into a compositor.  */
+	Subcompositor *subcompositor;
 
-  /* Toplevel children of this subcompositor.  */
-  List *children, *last_children;
+	/* Pointer to the parent view.  NULL if the parent is the
+	   subcompositor itself.  */
+	View *parent;
 
-  /* List of destroy callbacks.  */
-  SubcompositorDestroyCallback destroy_callbacks;
+	/* Pointer to the link containing the view itself.  */
+	List *link;
 
-  /* Target this subcompositor draws to.  */
-  RenderTarget target;
+	/* Pointer to another such link used in the view hierarchy.  */
+	List *self;
 
-  /* Function called when the opaque region changes.  */
-  void (*opaque_change) (Subcompositor *, void *,
-			 pixman_region32_t *);
+	/* Pointer to the link containing the view's last inferior.  */
+	List *inferior;
 
-  /* Function called when the input region changes.  */
-  void (*input_change) (Subcompositor *, void *,
-			pixman_region32_t *);
+	/* List of children.  */
+	List *children;
 
-  /* Function called with the bounds before each update.  */
-  void (*note_bounds) (void *, int, int, int, int);
+	/* The end of that list.  */
+	List *children_last;
 
-  /* Function called with the frame counter on each update.  Counter 3
-     is the msc and counter 4 is the ust.  */
-  void (*note_frame) (FrameMode, uint64_t, void *, uint64_t,
-		      uint64_t);
+	/* Buffer data.  */
 
-  /* The current frame counter, incremented with each frame.  */
-  uint64_t frame_counter;
+	/* Width and height of the view.  Not valid until
+	   ViewAfterSizeUpdate!  */
+	int width, height;
 
-  /* Data for those three functions.  */
-  void *opaque_change_data, *input_change_data, *note_bounds_data;
+	/* The buffer associated with this view, or None if nothing is
+	   attached.  */
+	ExtBuffer *buffer;
 
-  /* Data for the fourth.  */
-  void *note_frame_data;
+	/* Function called upon the view potentially being resized.  */
+	void (*maybe_resized)(View *);
 
-  /* Buffers used to store that damage.  */
-  pixman_region32_t prior_damage[2];
+	/* Some data associated with this view.  Can be a surface or
+	   something else.  */
+	void *data;
 
-  /* Any additional damage to be applied to the subcompositor.  */
-  pixman_region32_t additional_damage;
+	/* Culling data; this is not valid after drawing completes.  */
+	pixman_region32_t *cull_region;
 
-  /* The damage region of previous updates.  last_damage is what the
-     damage region was 1 update ago, and before_damage is what the
-     damage region was 2 updates ago.  */
-  pixman_region32_t *last_damage, *before_damage;
+	/* The damaged and opaque regions.  */
+	pixman_region32_t damage, opaque;
 
-  /* The last attached presentation callback, if any.  */
-  PresentCompletionKey present_key;
+	/* The input region.  */
+	pixman_region32_t input;
 
-  /* The last attached render completion callback, if any.  */
-  RenderCompletionKey render_key;
+	/* The position of this view relative to its parent.  */
+	int x, y;
 
-  /* The minimum origin of any surface in this subcompositor.  Used to
-     compute the actual size of the subcompositor.  */
-  int min_x, min_y;
+	/* The absolute position of this view relative to the subcompositor
+	   (or topmost parent if the view hierarchy is detached).  */
+	int abs_x, abs_y;
 
-  /* The maximum position of any surface in this subcompositor.  Used
-     to compute the actual size of the subcompositor.  */
-  int max_x, max_y;
+	/* The scale of this view.  */
+	int scale;
 
-  /* Those positions at the time of the last subcompositor update.  */
-  int last_update_max_x, last_update_max_y;
+	/* Flags; whether or not this view is unmapped, etc.  */
+	int flags;
 
-  /* An additional offset to apply when drawing to the target.  */
-  int tx, ty;
+	/* Any transform associated with this view.  */
+	BufferTransform transform;
 
-  /* Various flags describing the state of this subcompositor.  */
-  int state;
+	/* The viewport data.  */
+	double src_x, src_y, crop_width, crop_height, dest_width, dest_height;
+
+	/* Fractional offset applied to the view contents and damage during
+	   compositing.  */
+	double fract_x, fract_y;
 };
 
-enum
-  {
-    DoMinX = 1,
-    DoMinY = (1 << 1),
-    DoMaxX = (1 << 2),
-    DoMaxY = (1 << 3),
-    DoAll  = 0xf,
-  };
+struct _SubcompositorDestroyCallback {
+	/* Function run upon the subcompositor being destroyed.  */
+	void (*destroy_func)(void *);
+
+	/* Data for that function.  */
+	void *data;
+
+	/* The next and last callbacks.  */
+	SubcompositorDestroyCallback *next, *last;
+};
+
+struct _Subcompositor {
+	/* List of all inferiors in compositing order.  */
+	List *inferiors, *last;
+
+	/* Toplevel children of this subcompositor.  */
+	List *children, *last_children;
+
+	/* List of destroy callbacks.  */
+	SubcompositorDestroyCallback destroy_callbacks;
+
+	/* Target this subcompositor draws to.  */
+	RenderTarget target;
+
+	/* Function called when the opaque region changes.  */
+	void (*opaque_change)(Subcompositor *, void *, pixman_region32_t *);
+
+	/* Function called when the input region changes.  */
+	void (*input_change)(Subcompositor *, void *, pixman_region32_t *);
+
+	/* Function called with the bounds before each update.  */
+	void (*note_bounds)(void *, int, int, int, int);
+
+	/* Function called with the frame counter on each update.  Counter 3
+	   is the msc and counter 4 is the ust.  */
+	void (*note_frame)(FrameMode, uint64_t, void *, uint64_t, uint64_t);
+
+	/* The current frame counter, incremented with each frame.  */
+	uint64_t frame_counter;
+
+	/* Data for those three functions.  */
+	void *opaque_change_data, *input_change_data, *note_bounds_data;
+
+	/* Data for the fourth.  */
+	void *note_frame_data;
+
+	/* Buffers used to store that damage.  */
+	pixman_region32_t prior_damage[2];
+
+	/* Any additional damage to be applied to the subcompositor.  */
+	pixman_region32_t additional_damage;
+
+	/* The damage region of previous updates.  last_damage is what the
+	   damage region was 1 update ago, and before_damage is what the
+	   damage region was 2 updates ago.  */
+	pixman_region32_t *last_damage, *before_damage;
+
+	/* The last attached presentation callback, if any.  */
+	PresentCompletionKey present_key;
+
+	/* The last attached render completion callback, if any.  */
+	RenderCompletionKey render_key;
+
+	/* The minimum origin of any surface in this subcompositor.  Used to
+	   compute the actual size of the subcompositor.  */
+	int min_x, min_y;
+
+	/* The maximum position of any surface in this subcompositor.  Used
+	   to compute the actual size of the subcompositor.  */
+	int max_x, max_y;
+
+	/* Those positions at the time of the last subcompositor update.  */
+	int last_update_max_x, last_update_max_y;
+
+	/* An additional offset to apply when drawing to the target.  */
+	int tx, ty;
+
+	/* Various flags describing the state of this subcompositor.  */
+	int state;
+};
+
+enum {
+	DoMinX = 1,
+	DoMinY = (1 << 1),
+	DoMaxX = (1 << 2),
+	DoMaxY = (1 << 3),
+	DoAll  = 0xf,
+};
 
 /* "Four corners" damage simplification algorithm.  If the number of
    rectangles in the damage exceeds some preset number, then the
@@ -398,151 +382,137 @@ enum
    not sextants are more optimal for damage appearing in the middle of
    a surface.  */
 
-#define IsDamageComplicated(damage)		\
-  (pixman_region32_n_rects (damage) >= 10)
+#define IsDamageComplicated(damage) (pixman_region32_n_rects(damage) >= 10)
 
 static void
-SimplifyDamage (pixman_region32_t *damage, int min_x, int min_y,
-		int max_x, int max_y)
+SimplifyDamage(pixman_region32_t *damage, int min_x, int min_y, int max_x,
+    int max_y)
 {
-  Rectangle quadrant_a, quadrant_b, quadrant_c, quadrant_d;
-  pixman_box32_t extents_a, extents_b, extents_c, extents_d;
-  pixman_region32_t temp;
-  int width, height;
+	Rectangle	  quadrant_a, quadrant_b, quadrant_c, quadrant_d;
+	pixman_box32_t	  extents_a, extents_b, extents_c, extents_d;
+	pixman_region32_t temp;
+	int		  width, height;
 
-  width = max_x - min_x;
-  height = max_y - min_y;
+	width  = max_x - min_x;
+	height = max_y - min_y;
 
-  /* Split the surface or subcompositor into quadrants:
+	/* Split the surface or subcompositor into quadrants:
 
-              +-------------+-------------+
-	      |             |             |
-	      |  Quadrant   |  Quadrant   |
-	      |     A       |     B       |
-	      |             |             |
-	      +-------------+-------------|
-	      |             |             |
-	      |  Quadrant   |  Quadrant   |
-	      |     C       |     D       |
-	      |             |             |
-	      +---------------------------+  */
+		    +-------------+-------------+
+		    |             |             |
+		    |  Quadrant   |  Quadrant   |
+		    |     A       |     B       |
+		    |             |             |
+		    +-------------+-------------|
+		    |             |             |
+		    |  Quadrant   |  Quadrant   |
+		    |     C       |     D       |
+		    |             |             |
+		    +---------------------------+  */
 
-  quadrant_a.x = min_x;
-  quadrant_a.y = min_y;
-  quadrant_a.width = width / 2;
-  quadrant_a.height = height / 2;
+	quadrant_a.x	  = min_x;
+	quadrant_a.y	  = min_y;
+	quadrant_a.width  = width / 2;
+	quadrant_a.height = height / 2;
 
-  quadrant_b.x = quadrant_a.x + quadrant_a.width;
-  quadrant_b.y = min_y;
-  quadrant_b.width = width - quadrant_a.width;
-  quadrant_b.height = height / 2;
+	quadrant_b.x	  = quadrant_a.x + quadrant_a.width;
+	quadrant_b.y	  = min_y;
+	quadrant_b.width  = width - quadrant_a.width;
+	quadrant_b.height = height / 2;
 
-  quadrant_c.x = min_x;
-  quadrant_c.y = quadrant_a.y + quadrant_a.height;
-  quadrant_c.width = width / 2;
-  quadrant_c.height = height - quadrant_a.height;
+	quadrant_c.x	  = min_x;
+	quadrant_c.y	  = quadrant_a.y + quadrant_a.height;
+	quadrant_c.width  = width / 2;
+	quadrant_c.height = height - quadrant_a.height;
 
-  quadrant_d.x = quadrant_a.x + quadrant_a.width;
-  quadrant_d.y = quadrant_a.y + quadrant_a.height;
-  quadrant_d.width = width - quadrant_a.width;
-  quadrant_d.height = height - quadrant_a.height;
+	quadrant_d.x	  = quadrant_a.x + quadrant_a.width;
+	quadrant_d.y	  = quadrant_a.y + quadrant_a.height;
+	quadrant_d.width  = width - quadrant_a.width;
+	quadrant_d.height = height - quadrant_a.height;
 
-  /* Now, compute the intersection of the damage with each of the
-     rectangles.  */
-  pixman_region32_init (&temp);
+	/* Now, compute the intersection of the damage with each of the
+	   rectangles.  */
+	pixman_region32_init(&temp);
 
-  /* A.  */
-  pixman_region32_intersect_rect (&temp, damage, quadrant_a.x,
-				  quadrant_a.y, quadrant_a.width,
-				  quadrant_a.height);
-  extents_a = temp.extents;
+	/* A.  */
+	pixman_region32_intersect_rect(&temp, damage, quadrant_a.x,
+	    quadrant_a.y, quadrant_a.width, quadrant_a.height);
+	extents_a = temp.extents;
 
-  /* B.  */
-  pixman_region32_intersect_rect (&temp, damage, quadrant_b.x,
-				  quadrant_b.y, quadrant_b.width,
-				  quadrant_b.height);
-  extents_b = temp.extents;
+	/* B.  */
+	pixman_region32_intersect_rect(&temp, damage, quadrant_b.x,
+	    quadrant_b.y, quadrant_b.width, quadrant_b.height);
+	extents_b = temp.extents;
 
-  /* C.  */
-  pixman_region32_intersect_rect (&temp, damage, quadrant_c.x,
-				  quadrant_c.y, quadrant_c.width,
-				  quadrant_c.height);
-  extents_c = temp.extents;
+	/* C.  */
+	pixman_region32_intersect_rect(&temp, damage, quadrant_c.x,
+	    quadrant_c.y, quadrant_c.width, quadrant_c.height);
+	extents_c = temp.extents;
 
-  /* D.  */
-  pixman_region32_intersect_rect (&temp, damage, quadrant_d.x,
-				  quadrant_d.y, quadrant_d.width,
-				  quadrant_d.height);
-  extents_d = temp.extents;
-  pixman_region32_fini (&temp);
+	/* D.  */
+	pixman_region32_intersect_rect(&temp, damage, quadrant_d.x,
+	    quadrant_d.y, quadrant_d.width, quadrant_d.height);
+	extents_d = temp.extents;
+	pixman_region32_fini(&temp);
 
-  /* Finally, clear the damage.  */
-  pixman_region32_clear (damage);
+	/* Finally, clear the damage.  */
+	pixman_region32_clear(damage);
 
-  /* Union the damage with each of the extents.  */
-  pixman_region32_union_rect (damage, damage,
-			      extents_a.x1, extents_a.y1,
-			      extents_a.x2 - extents_a.x1,
-			      extents_a.y2 - extents_a.y1);
-  pixman_region32_union_rect (damage, damage,
-			      extents_b.x1, extents_b.y1,
-			      extents_b.x2 - extents_b.x1,
-			      extents_b.y2 - extents_b.y1);
-  pixman_region32_union_rect (damage, damage,
-			      extents_c.x1, extents_c.y1,
-			      extents_c.x2 - extents_c.x1,
-			      extents_c.y2 - extents_c.y1);
-  pixman_region32_union_rect (damage, damage,
-			      extents_d.x1, extents_d.y1,
-			      extents_d.x2 - extents_d.x1,
-			      extents_d.y2 - extents_d.y1);
+	/* Union the damage with each of the extents.  */
+	pixman_region32_union_rect(damage, damage, extents_a.x1, extents_a.y1,
+	    extents_a.x2 - extents_a.x1, extents_a.y2 - extents_a.y1);
+	pixman_region32_union_rect(damage, damage, extents_b.x1, extents_b.y1,
+	    extents_b.x2 - extents_b.x1, extents_b.y2 - extents_b.y1);
+	pixman_region32_union_rect(damage, damage, extents_c.x1, extents_c.y1,
+	    extents_c.x2 - extents_c.x1, extents_c.y2 - extents_c.y1);
+	pixman_region32_union_rect(damage, damage, extents_d.x1, extents_d.y1,
+	    extents_d.x2 - extents_d.x1, extents_d.y2 - extents_d.y1);
 }
 
-
 /* Circular doubly linked list of views.  These lists work unusually:
    for example, only some lists have a "sentinel" node at the
    beginning with the value NULL.  This is so that sub-lists can be
    extracted from them without consing.  */
 
 static List *
-ListInit (View *value)
+ListInit(View *value)
 {
-  List *link;
+	List *link;
 
-  link = XLCalloc (1, sizeof *link);
-  link->next = link;
-  link->last = link;
-  link->view = value;
+	link	   = XLCalloc(1, sizeof *link);
+	link->next = link;
+	link->last = link;
+	link->view = value;
 
-  return link;
+	return link;
 }
 
 static void
-ListRelinkAfter (List *start, List *end, List *dest)
+ListRelinkAfter(List *start, List *end, List *dest)
 {
-  end->next = dest->next;
-  start->last = dest;
+	end->next   = dest->next;
+	start->last = dest;
 
-  dest->next->last = end;
-  dest->next = start;
+	dest->next->last = end;
+	dest->next	 = start;
 }
 
 static void
-ListInsertAfter (List *after, List *item)
+ListInsertAfter(List *after, List *item)
 {
-  ListRelinkAfter (item, item, after);
+	ListRelinkAfter(item, item, after);
 }
 
 static void
-ListInsertBefore (List *before, List *item)
+ListInsertBefore(List *before, List *item)
 {
-  ListRelinkAfter (item, item, before->last);
+	ListRelinkAfter(item, item, before->last);
 }
 
 static void
-ListRelinkBefore (List *start, List *end, List *dest)
+ListRelinkBefore(List *start, List *end, List *dest)
 {
-  ListRelinkAfter (start, end, dest->last);
+	ListRelinkAfter(start, end, dest->last);
 }
 
 /* Unlink the list between START and END from their surroundings.
@@ -550,765 +520,721 @@ ListRelinkBefore (List *start, List *end, List *dest)
    START is not the sentinel node.  */
 
 static void
-ListUnlink (List *start, List *end)
+ListUnlink(List *start, List *end)
 {
-  /* First, make the list skip past END.  */
-  start->last->next = end->next;
-  end->next->last = start->last;
+	/* First, make the list skip past END.  */
+	start->last->next = end->next;
+	end->next->last	  = start->last;
 
-  /* Then, unlink the list.  */
-  start->last = end;
-  end->next = start;
+	/* Then, unlink the list.  */
+	start->last = end;
+	end->next   = start;
 }
 
 Subcompositor *
-MakeSubcompositor (void)
+MakeSubcompositor(void)
 {
-  Subcompositor *subcompositor;
+	Subcompositor *subcompositor;
 
-  subcompositor = XLCalloc (1, sizeof *subcompositor);
-  subcompositor->inferiors = ListInit (NULL);
-  subcompositor->children = ListInit (NULL);
+	subcompositor		 = XLCalloc(1, sizeof *subcompositor);
+	subcompositor->inferiors = ListInit(NULL);
+	subcompositor->children	 = ListInit(NULL);
 
-  subcompositor->last = subcompositor->inferiors;
-  subcompositor->last_children = subcompositor->children;
+	subcompositor->last	     = subcompositor->inferiors;
+	subcompositor->last_children = subcompositor->children;
 
-  /* Initialize the list of destroy callbacks.  */
-  subcompositor->destroy_callbacks.next
-    = &subcompositor->destroy_callbacks;
-  subcompositor->destroy_callbacks.last
-    = &subcompositor->destroy_callbacks;
+	/* Initialize the list of destroy callbacks.  */
+	subcompositor->destroy_callbacks.next =
+	    &subcompositor->destroy_callbacks;
+	subcompositor->destroy_callbacks.last =
+	    &subcompositor->destroy_callbacks;
 
-  /* Initialize the buffers used to store previous damage.  */
-  pixman_region32_init (&subcompositor->prior_damage[0]);
-  pixman_region32_init (&subcompositor->prior_damage[1]);
+	/* Initialize the buffers used to store previous damage.  */
+	pixman_region32_init(&subcompositor->prior_damage[0]);
+	pixman_region32_init(&subcompositor->prior_damage[1]);
 
-  /* And the buffer used to store additional damage.  */
-  pixman_region32_init (&subcompositor->additional_damage);
+	/* And the buffer used to store additional damage.  */
+	pixman_region32_init(&subcompositor->additional_damage);
 
-  return subcompositor;
+	return subcompositor;
 }
 
 View *
-MakeView (void)
+MakeView(void)
 {
-  View *view;
+	View *view;
 
-  view = XLCalloc (1, sizeof *view);
-  view->subcompositor = NULL;
-  view->parent = NULL;
+	view		    = XLCalloc(1, sizeof *view);
+	view->subcompositor = NULL;
+	view->parent	    = NULL;
 
-  /* Note that view->link is not supposed to have a sentinel; it can
-     only be part of a larger list.  */
-  view->link = ListInit (view);
-  view->inferior = view->link;
+	/* Note that view->link is not supposed to have a sentinel; it can
+	   only be part of a larger list.  */
+	view->link     = ListInit(view);
+	view->inferior = view->link;
 
-  /* Likewise for view->self.  */
-  view->self = ListInit (view);
+	/* Likewise for view->self.  */
+	view->self = ListInit(view);
 
-  /* But view->children is a complete list by itself.  */
-  view->children = ListInit (NULL);
-  view->children_last = view->children;
+	/* But view->children is a complete list by itself.  */
+	view->children	    = ListInit(NULL);
+	view->children_last = view->children;
 
-  view->buffer = NULL;
+	view->buffer = NULL;
 
-  pixman_region32_init (&view->damage);
-  pixman_region32_init (&view->opaque);
-  pixman_region32_init (&view->input);
+	pixman_region32_init(&view->damage);
+	pixman_region32_init(&view->opaque);
+	pixman_region32_init(&view->input);
 
-  view->transform = Normal;
+	view->transform = Normal;
 
-  return view;
+	return view;
 }
 
 static int
-ViewMaxX (View *view)
+ViewMaxX(View *view)
 {
-  return view->abs_x + view->width - 1;
+	return view->abs_x + view->width - 1;
 }
 
 static int
-ViewMaxY (View *view)
+ViewMaxY(View *view)
 {
-  return view->abs_y + view->height - 1;
+	return view->abs_y + view->height - 1;
 }
 
 static Bool
-ViewIsMapped (View *view)
+ViewIsMapped(View *view)
 {
-  if (view->subcompositor
-      && !IsPartiallyMapped (view->subcompositor))
-    return True;
+	if (view->subcompositor && !IsPartiallyMapped(view->subcompositor))
+		return True;
 
-  if (IsViewUnmapped (view))
-    return False;
+	if (IsViewUnmapped(view))
+		return False;
 
-  if (view->parent)
-    return ViewIsMapped (view->parent);
+	if (view->parent)
+		return ViewIsMapped(view->parent);
 
-  return True;
+	return True;
 }
 
 static void
-SubcompositorUpdateBounds (Subcompositor *subcompositor, int doflags)
+SubcompositorUpdateBounds(Subcompositor *subcompositor, int doflags)
 {
-  List *list;
-  int min_x, min_y, max_x, max_y;
-  int old_min_x, old_min_y;
+	List *list;
+	int   min_x, min_y, max_x, max_y;
+	int   old_min_x, old_min_y;
 
-  /* Updates were optimized out.  */
-  if (!doflags)
-    return;
+	/* Updates were optimized out.  */
+	if (!doflags)
+		return;
 
-  list = subcompositor->inferiors->next;
-  min_x = max_x = min_y = max_y = 0;
-  old_min_x = subcompositor->min_x;
-  old_min_y = subcompositor->min_y;
+	list  = subcompositor->inferiors->next;
+	min_x = max_x = min_y = max_y = 0;
+	old_min_x		      = subcompositor->min_x;
+	old_min_y		      = subcompositor->min_y;
 
-  while (list != subcompositor->inferiors)
-    {
-      if (list->view)
-	{
-	  /* If the view is unmapped, skip past its children.  */
-	  if (IsViewUnmapped (list->view))
-	    {
-	      list = list->view->inferior;
-	      goto next;
-	    }
+	while (list != subcompositor->inferiors) {
+		if (list->view) {
+			/* If the view is unmapped, skip past its children.  */
+			if (IsViewUnmapped(list->view)) {
+				list = list->view->inferior;
+				goto next;
+			}
 
-	  if ((doflags & DoMinX) && min_x > list->view->abs_x)
-	    min_x = list->view->abs_x;
+			if ((doflags & DoMinX) && min_x > list->view->abs_x)
+				min_x = list->view->abs_x;
 
-	  if ((doflags & DoMinY) && min_x > list->view->abs_y)
-	    min_y = list->view->abs_y;
+			if ((doflags & DoMinY) && min_x > list->view->abs_y)
+				min_y = list->view->abs_y;
 
-	  if ((doflags & DoMaxX) && max_x < ViewMaxX (list->view))
-	    max_x = ViewMaxX (list->view);
+			if ((doflags & DoMaxX) && max_x < ViewMaxX(list->view))
+				max_x = ViewMaxX(list->view);
 
-	  if ((doflags & DoMaxY) && max_y < ViewMaxY (list->view))
-	    max_y = ViewMaxY (list->view);
+			if ((doflags & DoMaxY) && max_y < ViewMaxY(list->view))
+				max_y = ViewMaxY(list->view);
+		}
+
+	next:
+		list = list->next;
 	}
 
-    next:
-      list = list->next;
-    }
+	if (doflags & DoMinX) {
+		if (old_min_x != min_x)
+			SetGarbaged(subcompositor);
 
-  if (doflags & DoMinX)
-    {
-      if (old_min_x != min_x)
-	SetGarbaged (subcompositor);
+		subcompositor->min_x = min_x;
+	}
 
-      subcompositor->min_x = min_x;
-    }
+	if (doflags & DoMinY) {
+		if (old_min_y != min_y)
+			SetGarbaged(subcompositor);
 
-  if (doflags & DoMinY)
-    {
-      if (old_min_y != min_y)
-	SetGarbaged (subcompositor);
+		subcompositor->min_y = min_y;
+	}
 
-      subcompositor->min_y = min_y;
-    }
+	/* Note that SetGarbaged is not called here if only the max_x or
+	   max_y changed.  Instead, max_x and max_y are compared with their
+	   values at the time of the last update inside SubcompositorUpdate.
+	   The reason is that some clients first move a view and then unmap
+	   it, so the subcompositor bounds are not actually changed by the
+	   call to SubcompositorUpdate.  */
 
-  /* Note that SetGarbaged is not called here if only the max_x or
-     max_y changed.  Instead, max_x and max_y are compared with their
-     values at the time of the last update inside SubcompositorUpdate.
-     The reason is that some clients first move a view and then unmap
-     it, so the subcompositor bounds are not actually changed by the
-     call to SubcompositorUpdate.  */
+	if (doflags & DoMaxX)
+		subcompositor->max_x = max_x;
 
-  if (doflags & DoMaxX)
-    subcompositor->max_x = max_x;
-
-  if (doflags & DoMaxY)
-    subcompositor->max_y = max_y;
+	if (doflags & DoMaxY)
+		subcompositor->max_y = max_y;
 }
 
 static void
-SubcompositorUpdateBoundsForInsert (Subcompositor *subcompositor,
-				    View *view)
+SubcompositorUpdateBoundsForInsert(Subcompositor *subcompositor, View *view)
 {
-  XLAssert (view->subcompositor == subcompositor);
+	XLAssert(view->subcompositor == subcompositor);
 
-  if (!ViewIsMapped (view))
-    /* If the view is unmapped, do nothing.  */
-    return;
+	if (!ViewIsMapped(view))
+		/* If the view is unmapped, do nothing.  */
+		return;
 
-  /* Inserting a view cannot shrink the subcompositor.  */
+	/* Inserting a view cannot shrink the subcompositor.  */
 
-  if (view->abs_x < subcompositor->min_x)
-    {
-      subcompositor->min_x = view->abs_x;
+	if (view->abs_x < subcompositor->min_x) {
+		subcompositor->min_x = view->abs_x;
 
-      /* Garbage the subcompositor for this change.  */
-      SetGarbaged (subcompositor);
-    }
+		/* Garbage the subcompositor for this change.  */
+		SetGarbaged(subcompositor);
+	}
 
-  if (view->abs_y < view->subcompositor->min_y)
-    {
-      subcompositor->min_y = view->abs_y;
+	if (view->abs_y < view->subcompositor->min_y) {
+		subcompositor->min_y = view->abs_y;
 
-      /* Garbage the subcompositor for this change.  */
-      SetGarbaged (subcompositor);
-    }
+		/* Garbage the subcompositor for this change.  */
+		SetGarbaged(subcompositor);
+	}
 
-  if (view->subcompositor->max_x < ViewMaxX (view))
-    subcompositor->max_x = ViewMaxX (view);
+	if (view->subcompositor->max_x < ViewMaxX(view))
+		subcompositor->max_x = ViewMaxX(view);
 
-  if (view->subcompositor->max_y < ViewMaxY (view))
-    subcompositor->max_y = ViewMaxY (view);
+	if (view->subcompositor->max_y < ViewMaxY(view))
+		subcompositor->max_y = ViewMaxY(view);
 }
 
 void
-SubcompositorSetTarget (Subcompositor *compositor,
-			RenderTarget *target_in)
+SubcompositorSetTarget(Subcompositor *compositor, RenderTarget *target_in)
 {
-  if (target_in)
-    {
-      compositor->target = *target_in;
-      SetTargetAttached (compositor);
-    }
-  else
-    compositor->state &= SubcompositorIsTargetAttached;
+	if (target_in) {
+		compositor->target = *target_in;
+		SetTargetAttached(compositor);
+	} else
+		compositor->state &= SubcompositorIsTargetAttached;
 
-  /* We don't know if the new picture has the previous state left
-     over.  */
-  SetGarbaged (compositor);
+	/* We don't know if the new picture has the previous state left
+	   over.  */
+	SetGarbaged(compositor);
 }
 
-#define SkipSlug(list, view, next)				\
-  {								\
-    if (!list->view)						\
-      goto next;						\
-								\
-    if (IsViewUnmapped (list->view))				\
-      {								\
-	/* Skip the unmapped view.  */				\
-	list = list->view->inferior;				\
-	SetPartiallyMapped (subcompositor);			\
-	goto next;						\
-      }								\
-								\
-    if (!list->view->buffer)					\
-      goto next;						\
-								\
-    view = list->view;						\
-  }								\
+#define SkipSlug(list, view, next)                         \
+	{                                                  \
+		if (!list->view)                           \
+			goto next;                         \
+                                                           \
+		if (IsViewUnmapped(list->view)) {          \
+			/* Skip the unmapped view.  */     \
+			list = list->view->inferior;       \
+			SetPartiallyMapped(subcompositor); \
+			goto next;                         \
+		}                                          \
+                                                           \
+		if (!list->view->buffer)                   \
+			goto next;                         \
+                                                           \
+		view = list->view;                         \
+	}
 
 static void
-ViewUnionInferiorBounds (View *parent, pixman_region32_t *region)
+ViewUnionInferiorBounds(View *parent, pixman_region32_t *region)
 {
-  List *list;
-  View *view;
-  Subcompositor *subcompositor;
+	List	      *list;
+	View	      *view;
+	Subcompositor *subcompositor;
 
-  /* Return the bounds of each of VIEW's inferiors in REGION.  */
-  list = parent->link;
-  subcompositor = parent->subcompositor;
+	/* Return the bounds of each of VIEW's inferiors in REGION.  */
+	list	      = parent->link;
+	subcompositor = parent->subcompositor;
 
-  while (True)
-    {
-      SkipSlug (list, view, next);
+	while (True) {
+		SkipSlug(list, view, next);
 
-      /* Union the view bounds with the given region.  */
-      pixman_region32_union_rect (region, region, view->abs_x,
-				  view->abs_y, view->width,
-				  view->height);
+		/* Union the view bounds with the given region.  */
+		pixman_region32_union_rect(region, region, view->abs_x,
+		    view->abs_y, view->width, view->height);
 
-    next:
+	next:
 
-      if (list == parent->inferior)
-	/* Break if we are at the end of the list.  */
-	break;
+		if (list == parent->inferior)
+			/* Break if we are at the end of the list.  */
+			break;
 
-      list = list->next;
-    }
+		list = list->next;
+	}
 }
 
 static void
-DamageIncludingInferiors (View *parent)
+DamageIncludingInferiors(View *parent)
 {
-  List *list;
-  View *view;
-  Subcompositor *subcompositor;
+	List	      *list;
+	View	      *view;
+	Subcompositor *subcompositor;
 
-  if (!parent->subcompositor)
-    /* No subcompositor is attached... */
-    return;
+	if (!parent->subcompositor)
+		/* No subcompositor is attached... */
+		return;
 
-  /* Ignore unmapped views.  */
-  if (IsViewUnmapped (parent))
-    return;
+	/* Ignore unmapped views.  */
+	if (IsViewUnmapped(parent))
+		return;
 
-  /* Now, damage each inferior.  */
-  list = parent->link;
-  subcompositor = parent->subcompositor;
+	/* Now, damage each inferior.  */
+	list	      = parent->link;
+	subcompositor = parent->subcompositor;
 
-  while (True)
-    {
-      SkipSlug (list, view, next);
+	while (True) {
+		SkipSlug(list, view, next);
 
-      /* Union the view damage with its bounds.  */
-      pixman_region32_union_rect (&view->damage, &view->damage,
-				  0, 0, view->width, view->height);
+		/* Union the view damage with its bounds.  */
+		pixman_region32_union_rect(&view->damage, &view->damage, 0, 0,
+		    view->width, view->height);
 
-    next:
+	next:
 
-      if (list == parent->inferior)
-	/* Break if we are at the end of the list.  */
-	break;
+		if (list == parent->inferior)
+			/* Break if we are at the end of the list.  */
+			break;
 
-      list = list->next;
-    }
+		list = list->next;
+	}
 }
 
 void
-SubcompositorInsert (Subcompositor *compositor, View *view)
+SubcompositorInsert(Subcompositor *compositor, View *view)
 {
-  /* Link view into the list of children.  */
-  ListInsertBefore (compositor->last_children, view->self);
+	/* Link view into the list of children.  */
+	ListInsertBefore(compositor->last_children, view->self);
 
-  /* Make view's inferiors part of the compositor.  */
-  ListRelinkBefore (view->link, view->inferior,
-		    compositor->last);
+	/* Make view's inferiors part of the compositor.  */
+	ListRelinkBefore(view->link, view->inferior, compositor->last);
 
-  /* We don't know whether or not the subcompositor is partially
-     mapped.  Set the IsPartiallyMapped flag if the view has children;
-     it will be cleared upon the next update if the subcompositor is
-     not partially mapped.  */
-  if (IsViewUnmapped (view) || view->link != view->inferior)
-    SetPartiallyMapped (compositor);
+	/* We don't know whether or not the subcompositor is partially
+	   mapped.  Set the IsPartiallyMapped flag if the view has children;
+	   it will be cleared upon the next update if the subcompositor is
+	   not partially mapped.  */
+	if (IsViewUnmapped(view) || view->link != view->inferior)
+		SetPartiallyMapped(compositor);
 
-  /* And update bounds.  */
-  SubcompositorUpdateBoundsForInsert (compositor, view);
+	/* And update bounds.  */
+	SubcompositorUpdateBoundsForInsert(compositor, view);
 
-  /* Now, if the subcompositor is still not garbaged, damage each
-     inferior of the view.  */
-  if (!IsGarbaged (compositor))
-    DamageIncludingInferiors (view);
+	/* Now, if the subcompositor is still not garbaged, damage each
+	   inferior of the view.  */
+	if (!IsGarbaged(compositor))
+		DamageIncludingInferiors(view);
 }
 
 void
-SubcompositorInsertBefore (Subcompositor *compositor, View *view,
-			   View *sibling)
+SubcompositorInsertBefore(Subcompositor *compositor, View *view, View *sibling)
 {
-  /* Link view into the list of children, before the given
-     sibling.  */
-  ListInsertBefore (sibling->self, view->self);
+	/* Link view into the list of children, before the given
+	   sibling.  */
+	ListInsertBefore(sibling->self, view->self);
 
-  /* Make view's inferiors part of the compositor.  */
-  ListRelinkBefore (view->link, view->inferior, sibling->link);
+	/* Make view's inferiors part of the compositor.  */
+	ListRelinkBefore(view->link, view->inferior, sibling->link);
 
-  /* We don't know whether or not the subcompositor is partially
-     mapped.  Set the IsPartiallyMapped flag if the view has children;
-     it will be cleared upon the next update if the subcompositor is
-     not partially mapped.  */
-  if (IsViewUnmapped (view) || view->link != view->inferior)
-    SetPartiallyMapped (compositor);
+	/* We don't know whether or not the subcompositor is partially
+	   mapped.  Set the IsPartiallyMapped flag if the view has children;
+	   it will be cleared upon the next update if the subcompositor is
+	   not partially mapped.  */
+	if (IsViewUnmapped(view) || view->link != view->inferior)
+		SetPartiallyMapped(compositor);
 
-  /* And update bounds.  */
-  SubcompositorUpdateBoundsForInsert (compositor, view);
+	/* And update bounds.  */
+	SubcompositorUpdateBoundsForInsert(compositor, view);
 
-  /* Now, if the subcompositor is still not garbaged, damage each
-     inferior of the view.  */
-  if (!IsGarbaged (compositor))
-    DamageIncludingInferiors (view);
+	/* Now, if the subcompositor is still not garbaged, damage each
+	   inferior of the view.  */
+	if (!IsGarbaged(compositor))
+		DamageIncludingInferiors(view);
 }
 
 void
-SubcompositorInsertAfter (Subcompositor *compositor, View *view,
-			  View *sibling)
+SubcompositorInsertAfter(Subcompositor *compositor, View *view, View *sibling)
 {
-  /* Link view into the list of children, after the given sibling.  */
-  ListInsertAfter (sibling->self, view->self);
+	/* Link view into the list of children, after the given sibling.  */
+	ListInsertAfter(sibling->self, view->self);
 
-  /* Make view's inferiors part of the compositor.  */
-  ListRelinkAfter (view->link, view->inferior, sibling->inferior);
+	/* Make view's inferiors part of the compositor.  */
+	ListRelinkAfter(view->link, view->inferior, sibling->inferior);
 
-  /* We don't know whether or not the subcompositor is partially
-     mapped.  Set the IsPartiallyMapped flag if the view has children;
-     it will be cleared upon the next update if the subcompositor is
-     not partially mapped.  */
-  if (IsViewUnmapped (view) || view->link != view->inferior)
-    SetPartiallyMapped (compositor);
+	/* We don't know whether or not the subcompositor is partially
+	   mapped.  Set the IsPartiallyMapped flag if the view has children;
+	   it will be cleared upon the next update if the subcompositor is
+	   not partially mapped.  */
+	if (IsViewUnmapped(view) || view->link != view->inferior)
+		SetPartiallyMapped(compositor);
 
-  /* And update bounds.  */
-  SubcompositorUpdateBoundsForInsert (compositor, view);
+	/* And update bounds.  */
+	SubcompositorUpdateBoundsForInsert(compositor, view);
 
-  /* Now, if the subcompositor is still not garbaged, damage each
-     inferior of the view.  */
-  if (!IsGarbaged (compositor))
-    DamageIncludingInferiors (view);
+	/* Now, if the subcompositor is still not garbaged, damage each
+	   inferior of the view.  */
+	if (!IsGarbaged(compositor))
+		DamageIncludingInferiors(view);
 }
-
 
 static Bool
-ViewVisibilityState (View *view, Bool *mapped)
+ViewVisibilityState(View *view, Bool *mapped)
 {
-  if (IsViewUnmapped (view) && mapped)
-    {
-      *mapped = False;
+	if (IsViewUnmapped(view) && mapped) {
+		*mapped = False;
 
-      /* Clear mapped, so it will never be set again.  */
-      mapped = NULL;
-    }
+		/* Clear mapped, so it will never be set again.  */
+		mapped = NULL;
+	}
 
-  if (view->parent)
-    return ViewVisibilityState (view->parent, mapped);
+	if (view->parent)
+		return ViewVisibilityState(view->parent, mapped);
 
-  if (mapped)
-    *mapped = !IsViewUnmapped (view);
+	if (mapped)
+		*mapped = !IsViewUnmapped(view);
 
-  return view->link->next != view->link;
+	return view->link->next != view->link;
 }
 
 Bool
-ViewIsVisible (View *view)
+ViewIsVisible(View *view)
 {
-  Bool mapped;
+	Bool mapped;
 
-  if (!ViewVisibilityState (view, &mapped))
-    return False;
+	if (!ViewVisibilityState(view, &mapped))
+		return False;
 
-  return mapped;
+	return mapped;
 }
 
 static void
-ViewRecomputeChildren (View *view, int *doflags)
+ViewRecomputeChildren(View *view, int *doflags)
 {
-  List *list;
-  View *child;
-  Bool attached, mapped;
+	List *list;
+	View *child;
+	Bool  attached, mapped;
 
-  list = view->children;
-  attached = ViewVisibilityState (view, &mapped);
+	list	 = view->children;
+	attached = ViewVisibilityState(view, &mapped);
 
-  do
-    {
-      list = list->next;
+	do {
+		list = list->next;
 
-      if (list->view)
-	{
-	  child = list->view;
+		if (list->view) {
+			child = list->view;
 
-	  child->abs_x = view->abs_x + child->x;
-	  child->abs_y = view->abs_y + child->y;
+			child->abs_x = view->abs_x + child->x;
+			child->abs_y = view->abs_y + child->y;
 
-	  if (view->subcompositor
-	      /* Don't operate on the subcompositor should the view be
-		 detached.  */
-	      && attached
-	      /* Or if it isn't mapped, or none of its parents are
-		 mapped.  */
-	      && mapped)
-	    {
-	      if (child->abs_x < view->subcompositor->min_x)
-		{
-		  view->subcompositor->min_x = child->abs_x;
+			if (view->subcompositor
+			    /* Don't operate on the subcompositor should the
+			       view be detached.  */
+			    && attached
+			    /* Or if it isn't mapped, or none of its parents are
+			       mapped.  */
+			    && mapped) {
+				if (child->abs_x < view->subcompositor->min_x) {
+					view->subcompositor->min_x =
+					    child->abs_x;
 
-		  if (doflags)
-		    *doflags &= ~DoMinX;
+					if (doflags)
+						*doflags &= ~DoMinX;
+				}
+
+				if (child->abs_x < view->subcompositor->min_y) {
+					view->subcompositor->min_y =
+					    child->abs_y;
+
+					if (doflags)
+						*doflags &= ~DoMinY;
+				}
+
+				if (view->subcompositor->max_x <
+				    ViewMaxX(child)) {
+					view->subcompositor->max_x = ViewMaxX(
+					    child);
+
+					if (doflags)
+						*doflags &= ~DoMaxX;
+				}
+
+				if (view->subcompositor->max_y <
+				    ViewMaxY(child)) {
+					view->subcompositor->max_y = ViewMaxY(
+					    child);
+
+					if (doflags)
+						*doflags &= ~DoMaxY;
+				}
+			}
+
+			ViewRecomputeChildren(child, doflags);
 		}
-
-	      if (child->abs_x < view->subcompositor->min_y)
-		{
-		  view->subcompositor->min_y = child->abs_y;
-
-		  if (doflags)
-		    *doflags &= ~DoMinY;
-		}
-
-	      if (view->subcompositor->max_x < ViewMaxX (child))
-		{
-		  view->subcompositor->max_x = ViewMaxX (child);
-
-		  if (doflags)
-		    *doflags &= ~DoMaxX;
-		}
-
-	      if (view->subcompositor->max_y < ViewMaxY (child))
-		{
-		  view->subcompositor->max_y = ViewMaxY (child);
-
-		  if (doflags)
-		    *doflags &= ~DoMaxY;
-		}
-	    }
-
-	  ViewRecomputeChildren (child, doflags);
-	}
-    }
-  while (list != view->children);
+	} while (list != view->children);
 }
 
 static void
-ViewUpdateBoundsForInsert (View *view)
+ViewUpdateBoundsForInsert(View *view)
 {
-  if (view->subcompositor)
-    SubcompositorUpdateBoundsForInsert (view->subcompositor,
-					view);
+	if (view->subcompositor)
+		SubcompositorUpdateBoundsForInsert(view->subcompositor, view);
 }
 
 void
-ViewInsert (View *view, View *child)
+ViewInsert(View *view, View *child)
 {
-  View *parent;
-  List *prior;
+	View *parent;
+	List *prior;
 
-  /* Make child's parent view.  */
-  child->parent = view;
+	/* Make child's parent view.  */
+	child->parent = view;
 
-  /* Insert child into the hierarchy list.  */
-  ListInsertBefore (view->children_last, child->self);
+	/* Insert child into the hierarchy list.  */
+	ListInsertBefore(view->children_last, child->self);
 
-  /* Insert child's inferior list.  */
-  ListRelinkAfter (child->link, child->inferior, view->inferior);
+	/* Insert child's inferior list.  */
+	ListRelinkAfter(child->link, child->inferior, view->inferior);
 
-  /* Note what the previous last inferior pointer of view was.  */
-  prior = view->inferior;
+	/* Note what the previous last inferior pointer of view was.  */
+	prior = view->inferior;
 
-  /* Update the entire view hierarchy's inferior pointers, starting
-     from view.  */
-  for (parent = view; parent; parent = parent->parent)
-    {
-      /* The last inferior of this view has been changed already;
-	 update it.  */
-      if (parent->inferior == prior)
-	parent->inferior = child->inferior;
-    }
-
-  /* We don't know whether or not the subcompositor is partially
-     mapped.  Set the IsPartiallyMapped flag if the view has children;
-     it will be cleared upon the next update if the subcompositor is
-     not partially mapped.  */
-  if (view->subcompositor
-      && (IsViewUnmapped (child)
-	  || child->link != child->inferior))
-    SetPartiallyMapped (view->subcompositor);
-
-  /* Also update the absolute positions of the child.  */
-  child->abs_x = view->abs_x + child->x;
-  child->abs_y = view->abs_y + child->y;
-  ViewRecomputeChildren (child, NULL);
-
-  /* And update bounds.  */
-  ViewUpdateBoundsForInsert (child);
-
-  /* Now, if the subcompositor is still not garbaged, damage each
-     inferior of the view.  */
-  if (child->subcompositor
-      && !IsGarbaged (child->subcompositor))
-    DamageIncludingInferiors (child);
-}
-
-void
-ViewInsertAfter (View *view, View *child, View *sibling)
-{
-  View *parent;
-  List *prior;
-
-  /* Make child's parent view.  */
-  child->parent = view;
-
-  /* Insert child into the hierarchy list.  */
-  ListInsertAfter (sibling->self, child->self);
-
-  /* Insert child's inferior list.  */
-  ListRelinkAfter (child->link, child->inferior,
-		   sibling->inferior);
-
-  /* Change the inferior pointers if sibling->inferior was the old
-     one.  */
-
-  if (sibling->inferior == view->inferior)
-    {
-      /* Note what the previous last inferior pointer of view was.  */
-      prior = sibling->inferior;
-
-      /* Update the entire view hierarchy's inferior pointers, starting
-	 from view.  */
-      for (parent = view; parent; parent = parent->parent)
-	{
-	  /* The last inferior of this view has been changed already;
-	     update it.  */
-	  if (parent->inferior == prior)
-	    parent->inferior = child->inferior;
-	}
-    }
-
-  /* We don't know whether or not the subcompositor is partially
-     mapped.  Set the IsPartiallyMapped flag if the view has children;
-     it will be cleared upon the next update if the subcompositor is
-     not partially mapped.  */
-  if (view->subcompositor
-      && (IsViewUnmapped (child)
-	  || child->link != child->inferior))
-    SetPartiallyMapped (view->subcompositor);
-
-  /* Also update the absolute positions of the child.  */
-  child->abs_x = view->abs_x + child->x;
-  child->abs_y = view->abs_y + child->y;
-  ViewRecomputeChildren (child, NULL);
-
-  /* And update bounds.  */
-  ViewUpdateBoundsForInsert (child);
-
-  /* Now, if the subcompositor is still not garbaged, damage each
-     inferior of the view.  */
-  if (child->subcompositor
-      && !IsGarbaged (child->subcompositor))
-    DamageIncludingInferiors (child);
-}
-
-void
-ViewInsertBefore (View *view, View *child, View *sibling)
-{
-  /* Make child's parent view.  */
-  child->parent = view;
-
-  /* Insert child into the hierarchy list.  */
-  ListInsertBefore (sibling->self, child->self);
-
-  /* Insert child's inferior list.  */
-  ListRelinkBefore (child->link, child->inferior,
-		    sibling->link);
-
-  /* We don't know whether or not the subcompositor is partially
-     mapped.  Set the IsPartiallyMapped flag if the view has children;
-     it will be cleared upon the next update if the subcompositor is
-     not partially mapped.  */
-  if (view->subcompositor
-      && (IsViewUnmapped (child)
-	  || child->link != child->inferior))
-    SetPartiallyMapped (view->subcompositor);
-
-  /* Also update the absolute positions of the child.  */
-  child->abs_x = view->abs_x + child->x;
-  child->abs_y = view->abs_y + child->y;
-  ViewRecomputeChildren (child, NULL);
-
-  /* Update subcompositor bounds.  Inserting a view cannot shrink
-     anything.  */
-  ViewUpdateBoundsForInsert (child);
-
-  /* Now, if the subcompositor is still not garbaged, damage each
-     inferior of the view.  */
-  if (child->subcompositor
-      && !IsGarbaged (child->subcompositor))
-    DamageIncludingInferiors (child);
-
-  /* Inserting inferiors before a sibling can never bump the inferior
-     pointer.  */
-}
-
-void
-ViewInsertStart (View *view, View *child)
-{
-  /* If view has no children, just call ViewInsert.  Note that
-     view->children is a sentinel node whose value is NULL.  */
-  if (view->children->next == view->children)
-    ViewInsert (view, child);
-  else
-    /* Otherwise, insert child before the first child.  */
-    ViewInsertBefore (view, child,
-		      view->children->next->view);
-}
-
-void
-ViewUnparent (View *child)
-{
-  View *parent;
-  Bool mapped, attached;
-  pixman_region32_t damage;
-
-  /* See if the view is attached or not.  */
-  attached = (ViewVisibilityState (child, &mapped)
-	      && mapped);
-
-  if (attached && child->subcompositor)
-    {
-      /* Init the damage region.  */
-      pixman_region32_init (&damage);
-
-      /* And store what additional damage should be applied for this
-	 unparent.  */
-      ViewUnionInferiorBounds (child, &damage);
-    }
-
-  /* Parent is either the subcompositor or another view.  */
-  ListUnlink (child->self, child->self);
-
-  if (child->parent)
-    {
-      /* Now update the inferior pointer of each parent currently
-	 pointing to child->inferior to the inferior of its leftmost
-	 sibling, or its parent itself.  */
-
-      for (parent = child->parent; parent; parent = parent->parent)
-	{
-	  if (parent->inferior == child->inferior)
-	    /* If this is the bottom-most child, then
-	       child->link->last will be the parent itself.  */
-	    parent->inferior = child->link->last;
+	/* Update the entire view hierarchy's inferior pointers, starting
+	   from view.  */
+	for (parent = view; parent; parent = parent->parent) {
+		/* The last inferior of this view has been changed already;
+		   update it.  */
+		if (parent->inferior == prior)
+			parent->inferior = child->inferior;
 	}
 
-      /* And reset the pointer to the parent.  */
-      child->parent = NULL;
-    }
+	/* We don't know whether or not the subcompositor is partially
+	   mapped.  Set the IsPartiallyMapped flag if the view has children;
+	   it will be cleared upon the next update if the subcompositor is
+	   not partially mapped.  */
+	if (view->subcompositor &&
+	    (IsViewUnmapped(child) || child->link != child->inferior))
+		SetPartiallyMapped(view->subcompositor);
 
-  /* Unlink the sub-list between the link pointer and the last
-     inferior pointer from that of the parent.  */
-  ListUnlink (child->link, child->inferior);
+	/* Also update the absolute positions of the child.  */
+	child->abs_x = view->abs_x + child->x;
+	child->abs_y = view->abs_y + child->y;
+	ViewRecomputeChildren(child, NULL);
 
-  /* Reset the absolute positions of child, and recompute that of its
-     children.  This is done after unlinking, because
-     ViewRecomputeChildren will otherwise try to operate on the
-     subcompositor.  */
-  child->abs_x = child->x;
-  child->abs_y = child->y;
+	/* And update bounds.  */
+	ViewUpdateBoundsForInsert(child);
 
-  ViewRecomputeChildren (child, NULL);
-
-  /* Now that the view hierarchy has been changed, garbage the
-     subcompositor.  */
-  if (child->subcompositor)
-    {
-      /* Update the bounds of the subcompositor.  */
-      SubcompositorUpdateBounds (child->subcompositor, DoAll);
-
-      /* If the subcompositor is not garbaged, then apply additional
-	 damage.  */
-      if (attached && !IsGarbaged (child->subcompositor))
-	pixman_region32_union (&child->subcompositor->additional_damage,
-			       &child->subcompositor->additional_damage,
-			       &damage);
-    }
-
-  if (attached && child->subcompositor)
-    /* Finalize the damage region.  */
-    pixman_region32_fini (&damage);
+	/* Now, if the subcompositor is still not garbaged, damage each
+	   inferior of the view.  */
+	if (child->subcompositor && !IsGarbaged(child->subcompositor))
+		DamageIncludingInferiors(child);
 }
 
 void
-ViewSetSubcompositor (View *view, Subcompositor *subcompositor)
+ViewInsertAfter(View *view, View *child, View *sibling)
 {
-  List *list;
+	View *parent;
+	List *prior;
 
-  list = view->link;
+	/* Make child's parent view.  */
+	child->parent = view;
 
-  /* Attach the subcompositor recursively for all of view's inferiors.
-     view should not be attached to a subcompositor.  */
+	/* Insert child into the hierarchy list.  */
+	ListInsertAfter(sibling->self, child->self);
 
-  do
-    {
-      if (list->view)
-	list->view->subcompositor = subcompositor;
+	/* Insert child's inferior list.  */
+	ListRelinkAfter(child->link, child->inferior, sibling->inferior);
 
-      list = list->next;
-    }
-  while (list != view->link);
+	/* Change the inferior pointers if sibling->inferior was the old
+	   one.  */
+
+	if (sibling->inferior == view->inferior) {
+		/* Note what the previous last inferior pointer of view was.  */
+		prior = sibling->inferior;
+
+		/* Update the entire view hierarchy's inferior pointers,
+		   starting from view.  */
+		for (parent = view; parent; parent = parent->parent) {
+			/* The last inferior of this view has been changed
+			   already; update it.  */
+			if (parent->inferior == prior)
+				parent->inferior = child->inferior;
+		}
+	}
+
+	/* We don't know whether or not the subcompositor is partially
+	   mapped.  Set the IsPartiallyMapped flag if the view has children;
+	   it will be cleared upon the next update if the subcompositor is
+	   not partially mapped.  */
+	if (view->subcompositor &&
+	    (IsViewUnmapped(child) || child->link != child->inferior))
+		SetPartiallyMapped(view->subcompositor);
+
+	/* Also update the absolute positions of the child.  */
+	child->abs_x = view->abs_x + child->x;
+	child->abs_y = view->abs_y + child->y;
+	ViewRecomputeChildren(child, NULL);
+
+	/* And update bounds.  */
+	ViewUpdateBoundsForInsert(child);
+
+	/* Now, if the subcompositor is still not garbaged, damage each
+	   inferior of the view.  */
+	if (child->subcompositor && !IsGarbaged(child->subcompositor))
+		DamageIncludingInferiors(child);
 }
 
-
+void
+ViewInsertBefore(View *view, View *child, View *sibling)
+{
+	/* Make child's parent view.  */
+	child->parent = view;
+
+	/* Insert child into the hierarchy list.  */
+	ListInsertBefore(sibling->self, child->self);
+
+	/* Insert child's inferior list.  */
+	ListRelinkBefore(child->link, child->inferior, sibling->link);
+
+	/* We don't know whether or not the subcompositor is partially
+	   mapped.  Set the IsPartiallyMapped flag if the view has children;
+	   it will be cleared upon the next update if the subcompositor is
+	   not partially mapped.  */
+	if (view->subcompositor &&
+	    (IsViewUnmapped(child) || child->link != child->inferior))
+		SetPartiallyMapped(view->subcompositor);
+
+	/* Also update the absolute positions of the child.  */
+	child->abs_x = view->abs_x + child->x;
+	child->abs_y = view->abs_y + child->y;
+	ViewRecomputeChildren(child, NULL);
+
+	/* Update subcompositor bounds.  Inserting a view cannot shrink
+	   anything.  */
+	ViewUpdateBoundsForInsert(child);
+
+	/* Now, if the subcompositor is still not garbaged, damage each
+	   inferior of the view.  */
+	if (child->subcompositor && !IsGarbaged(child->subcompositor))
+		DamageIncludingInferiors(child);
+
+	/* Inserting inferiors before a sibling can never bump the inferior
+	   pointer.  */
+}
+
+void
+ViewInsertStart(View *view, View *child)
+{
+	/* If view has no children, just call ViewInsert.  Note that
+	   view->children is a sentinel node whose value is NULL.  */
+	if (view->children->next == view->children)
+		ViewInsert(view, child);
+	else
+		/* Otherwise, insert child before the first child.  */
+		ViewInsertBefore(view, child, view->children->next->view);
+}
+
+void
+ViewUnparent(View *child)
+{
+	View		 *parent;
+	Bool		  mapped, attached;
+	pixman_region32_t damage;
+
+	/* See if the view is attached or not.  */
+	attached = (ViewVisibilityState(child, &mapped) && mapped);
+
+	if (attached && child->subcompositor) {
+		/* Init the damage region.  */
+		pixman_region32_init(&damage);
+
+		/* And store what additional damage should be applied for this
+		   unparent.  */
+		ViewUnionInferiorBounds(child, &damage);
+	}
+
+	/* Parent is either the subcompositor or another view.  */
+	ListUnlink(child->self, child->self);
+
+	if (child->parent) {
+		/* Now update the inferior pointer of each parent currently
+		   pointing to child->inferior to the inferior of its leftmost
+		   sibling, or its parent itself.  */
+
+		for (parent = child->parent; parent; parent = parent->parent) {
+			if (parent->inferior == child->inferior)
+				/* If this is the bottom-most child, then
+				   child->link->last will be the parent itself.
+				 */
+				parent->inferior = child->link->last;
+		}
+
+		/* And reset the pointer to the parent.  */
+		child->parent = NULL;
+	}
+
+	/* Unlink the sub-list between the link pointer and the last
+	   inferior pointer from that of the parent.  */
+	ListUnlink(child->link, child->inferior);
+
+	/* Reset the absolute positions of child, and recompute that of its
+	   children.  This is done after unlinking, because
+	   ViewRecomputeChildren will otherwise try to operate on the
+	   subcompositor.  */
+	child->abs_x = child->x;
+	child->abs_y = child->y;
+
+	ViewRecomputeChildren(child, NULL);
+
+	/* Now that the view hierarchy has been changed, garbage the
+	   subcompositor.  */
+	if (child->subcompositor) {
+		/* Update the bounds of the subcompositor.  */
+		SubcompositorUpdateBounds(child->subcompositor, DoAll);
+
+		/* If the subcompositor is not garbaged, then apply additional
+		   damage.  */
+		if (attached && !IsGarbaged(child->subcompositor))
+			pixman_region32_union(
+			    &child->subcompositor->additional_damage,
+			    &child->subcompositor->additional_damage, &damage);
+	}
+
+	if (attached && child->subcompositor)
+		/* Finalize the damage region.  */
+		pixman_region32_fini(&damage);
+}
+
+void
+ViewSetSubcompositor(View *view, Subcompositor *subcompositor)
+{
+	List *list;
+
+	list = view->link;
+
+	/* Attach the subcompositor recursively for all of view's inferiors.
+	   view should not be attached to a subcompositor.  */
+
+	do {
+		if (list->view)
+			list->view->subcompositor = subcompositor;
+
+		list = list->next;
+	} while (list != view->link);
+}
 
 /* Notice that VIEW's size has changed, while VIEW itself has not
    moved.  Recompute the max_x, min_x, min_y, and max_y of its
@@ -1316,2004 +1242,1892 @@ ViewSetSubcompositor (View *view, Subcompositor *subcompositor)
    any.  */
 
 static void
-ViewAfterSizeUpdate (View *view)
+ViewAfterSizeUpdate(View *view)
 {
-  int doflags, old_width, old_height;
-  Bool mapped;
+	int  doflags, old_width, old_height;
+	Bool mapped;
 
-  if (view->maybe_resized)
-    view->maybe_resized (view);
+	if (view->maybe_resized)
+		view->maybe_resized(view);
 
-  /* These are used to decide how to damage the subcompositor.  */
-  old_width = view->width;
-  old_height = view->height;
+	/* These are used to decide how to damage the subcompositor.  */
+	old_width  = view->width;
+	old_height = view->height;
 
-  /* Calculate view->width and view->height again.  */
-  view->width = ViewWidth (view);
-  view->height = ViewHeight (view);
+	/* Calculate view->width and view->height again.  */
+	view->width  = ViewWidth(view);
+	view->height = ViewHeight(view);
 
-  if (!view->subcompositor || !ViewVisibilityState (view, &mapped)
-      || !mapped)
-    return;
+	if (!view->subcompositor || !ViewVisibilityState(view, &mapped) ||
+	    !mapped)
+		return;
 
-  /* First, assume we will have to compute both max_x and max_y.  */
-  doflags = DoMaxX | DoMaxY;
+	/* First, assume we will have to compute both max_x and max_y.  */
+	doflags = DoMaxX | DoMaxY;
 
-  /* If the view is now wider than max_x and/or max_y, update those
-     now.  */
+	/* If the view is now wider than max_x and/or max_y, update those
+	   now.  */
 
-  if (view->subcompositor->max_x < ViewMaxX (view))
-    {
-      view->subcompositor->max_x = ViewMaxX (view);
+	if (view->subcompositor->max_x < ViewMaxX(view)) {
+		view->subcompositor->max_x = ViewMaxX(view);
 
-      /* We don't have to update max_x anymore.  */
-      doflags &= ~DoMaxX;
-    }
+		/* We don't have to update max_x anymore.  */
+		doflags &= ~DoMaxX;
+	}
 
-  if (view->subcompositor->max_y < ViewMaxY (view))
-    {
-      view->subcompositor->max_y = ViewMaxY (view);
+	if (view->subcompositor->max_y < ViewMaxY(view)) {
+		view->subcompositor->max_y = ViewMaxY(view);
 
-      /* We don't have to update max_x anymore.  */
-      doflags &= ~DoMaxY;
-    }
+		/* We don't have to update max_x anymore.  */
+		doflags &= ~DoMaxY;
+	}
 
-  /* Finally, update the bounds.  */
-  SubcompositorUpdateBounds (view->subcompositor, doflags);
+	/* Finally, update the bounds.  */
+	SubcompositorUpdateBounds(view->subcompositor, doflags);
 
-  /* If the subcompositor is not garbaged and the view shrunk, damage
-     the subcompositor accordingly.  */
-  if (!IsGarbaged (view->subcompositor)
-      && (view->width < old_width
-	  || view->height < old_height))
-    pixman_region32_union_rect (&view->subcompositor->additional_damage,
-				&view->subcompositor->additional_damage,
-				view->abs_x, view->abs_y, old_width,
-				old_height);
+	/* If the subcompositor is not garbaged and the view shrunk, damage
+	   the subcompositor accordingly.  */
+	if (!IsGarbaged(view->subcompositor) &&
+	    (view->width < old_width || view->height < old_height))
+		pixman_region32_union_rect(
+		    &view->subcompositor->additional_damage,
+		    &view->subcompositor->additional_damage, view->abs_x,
+		    view->abs_y, old_width, old_height);
 }
 
 void
-ViewAttachBuffer (View *view, ExtBuffer *buffer)
+ViewAttachBuffer(View *view, ExtBuffer *buffer)
 {
-  ExtBuffer *old;
+	ExtBuffer *old;
 
-  old = view->buffer;
-  view->buffer = buffer;
+	old	     = view->buffer;
+	view->buffer = buffer;
 
-  if (!view->buffer && old && view->subcompositor)
-    /* The view needs a size update, as it is now 0 by 0.  */
-    ViewAfterSizeUpdate (view);
-  else if ((buffer && !old)
-	    || (old && !buffer)
-	    || (buffer && old
-		&& (XLBufferWidth (buffer) != XLBufferWidth (old)
-		    || XLBufferHeight (buffer) != XLBufferHeight (old))
+	if (!view->buffer && old && view->subcompositor)
+		/* The view needs a size update, as it is now 0 by 0.  */
+		ViewAfterSizeUpdate(view);
+	else if ((buffer && !old) || (old && !buffer) ||
+	    (buffer && old &&
+		(XLBufferWidth(buffer) != XLBufferWidth(old) ||
+		    XLBufferHeight(buffer) != XLBufferHeight(old))
 		/* Buffer width and height changes don't matter if the
 		   view has a viewport.  */
-		&& !IsViewported (view)))
-    /* Recompute view and subcompositor bounds.  */
-    ViewAfterSizeUpdate (view);
+		&& !IsViewported(view)))
+		/* Recompute view and subcompositor bounds.  */
+		ViewAfterSizeUpdate(view);
 
-  if (buffer && IsViewUnmapped (view))
-    {
-      /* A buffer is now attached.  Automatically map the view, should
-	 it be unmapped.  */
-      ClearUnmapped (view);
+	if (buffer && IsViewUnmapped(view)) {
+		/* A buffer is now attached.  Automatically map the view, should
+		   it be unmapped.  */
+		ClearUnmapped(view);
 
-      if (view->subcompositor)
-	{
-	  /* Recompute subcompositor bounds.  */
-	  SubcompositorUpdateBounds (view->subcompositor, DoAll);
+		if (view->subcompositor) {
+			/* Recompute subcompositor bounds.  */
+			SubcompositorUpdateBounds(view->subcompositor, DoAll);
 
-	  /* Should the subcompositor not be garbaged, calculate the
-	     union of its inferiors and make it the additional
-	     damage.  */
-	  if (!IsGarbaged (view->subcompositor))
-	    ViewUnionInferiorBounds (view,
-				     &view->subcompositor->additional_damage);
+			/* Should the subcompositor not be garbaged, calculate
+			   the union of its inferiors and make it the additional
+			   damage.  */
+			if (!IsGarbaged(view->subcompositor))
+				ViewUnionInferiorBounds(view,
+				    &view->subcompositor->additional_damage);
+		}
 	}
-    }
 
-  if (old)
-    XLDereferenceBuffer (old);
+	if (old)
+		XLDereferenceBuffer(old);
 
-  if (view->buffer)
-    XLRetainBuffer (buffer);
+	if (view->buffer)
+		XLRetainBuffer(buffer);
 }
 
 void
-ViewMove (View *view, int x, int y)
+ViewMove(View *view, int x, int y)
 {
-  pixman_region32_t damage;
-  int doflags;
-  Bool mapped;
+	pixman_region32_t damage;
+	int		  doflags;
+	Bool		  mapped;
 
-  doflags = 0;
+	doflags = 0;
 
-  if (x != view->x || y != view->y)
-    {
-      pixman_region32_init (&damage);
+	if (x != view->x || y != view->y) {
+		pixman_region32_init(&damage);
 
-      view->x = x;
-      view->y = y;
+		view->x = x;
+		view->y = y;
 
-      /* If the subcompositor is not garbaged, then damage the union
-	 of the previous view bounds and the current view bounds.
-	 This part calculates the previous view bounds.  */
+		/* If the subcompositor is not garbaged, then damage the union
+		   of the previous view bounds and the current view bounds.
+		   This part calculates the previous view bounds.  */
 
-      if (view->subcompositor && !IsGarbaged (view->subcompositor))
-	ViewUnionInferiorBounds (view, &damage);
+		if (view->subcompositor && !IsGarbaged(view->subcompositor))
+			ViewUnionInferiorBounds(view, &damage);
 
-      if (view->parent)
-	{
-	  view->abs_x = view->parent->abs_x + x;
-	  view->abs_y = view->parent->abs_y + y;
+		if (view->parent) {
+			view->abs_x = view->parent->abs_x + x;
+			view->abs_y = view->parent->abs_y + y;
+		} else {
+			view->abs_x = x;
+			view->abs_y = x;
+		}
+
+		if (view->subcompositor &&
+		    ViewVisibilityState(view, &mapped)
+		    /* If this view isn't mapped or is skipped, then do nothing.
+		       The bounds will be recomputed later.  */
+		    && mapped) {
+			/* First assume everything will have to be updated.  */
+			doflags |= DoMaxX | DoMaxY | DoMinY | DoMinX;
+
+			/* If this view was moved before subcompositor.min_x
+			   and/or subcompositor.min_y, don't recompute those
+			   values unnecessarily.  */
+
+			if (view->abs_x < view->subcompositor->min_x) {
+				view->subcompositor->min_x = view->abs_x;
+
+				/* min_x has already been updated so there is no
+				   need to recompute it later.  */
+				doflags &= ~DoMinX;
+
+				/* Also garbage the subcompositor since the
+				   bounds changed.  */
+				SetGarbaged(view->subcompositor);
+			}
+
+			if (view->abs_y < view->subcompositor->min_x) {
+				view->subcompositor->min_y = view->abs_y;
+
+				/* min_y has already been updated so there is no
+				   need to recompute it later.  */
+				doflags &= ~DoMinY;
+
+				/* Also garbage the subcompositor since the
+				   bounds changed.  */
+				SetGarbaged(view->subcompositor);
+			}
+
+			/* If moving this view bumps subcompositor.max_x and/or
+			   subcompositor.max_y, don't recompute either.  */
+
+			if (view->subcompositor->max_x < ViewMaxX(view)) {
+				view->subcompositor->max_x = ViewMaxX(view);
+
+				/* max_x has been updated so there is no need to
+				   recompute it later.  If a child is bigger,
+				   then ViewRecomputeChildren will handle it as
+				   well.  */
+				doflags &= ~DoMaxX;
+			}
+
+			if (view->subcompositor->max_y < ViewMaxY(view)) {
+				view->subcompositor->max_y = ViewMaxY(view);
+
+				/* max_y has been updated so there is no need to
+				   recompute it later.  If a child is bigger,
+				   then ViewRecomputeChildren will handle it as
+				   well.  */
+				doflags &= ~DoMaxY;
+			}
+		}
+
+		if (view->subcompositor) {
+			/* Update the subcompositor bounds.  */
+			SubcompositorUpdateBounds(view->subcompositor, doflags);
+
+			/* Now calculate the absolute position for this view and
+			   all of its children.  N.B. that this operation can
+			   also update subcompositor.min_x or
+			   subcompositor.min_y.  */
+			ViewRecomputeChildren(view, &doflags);
+
+			/* If the subcompositor is still not garbaged, union
+			   damage the rest of the way and apply it.  */
+			if (!IsGarbaged(view->subcompositor)) {
+				ViewUnionInferiorBounds(view, &damage);
+
+				pixman_region32_union(
+				    &view->subcompositor->additional_damage,
+				    &view->subcompositor->additional_damage,
+				    &damage);
+			}
+		} else
+			/* Now calculate the absolute position for this view and
+			   all of its children.  */
+			ViewRecomputeChildren(view, &doflags);
+
+		pixman_region32_fini(&damage);
 	}
-      else
-	{
-	  view->abs_x = x;
-	  view->abs_y = x;
-	}
-
-      if (view->subcompositor && ViewVisibilityState (view, &mapped)
-	  /* If this view isn't mapped or is skipped, then do nothing.
-	     The bounds will be recomputed later.  */
-	  && mapped)
-	{
-	  /* First assume everything will have to be updated.  */
-	  doflags |= DoMaxX | DoMaxY | DoMinY | DoMinX;
-
-	  /* If this view was moved before subcompositor.min_x and/or
-	     subcompositor.min_y, don't recompute those values
-	     unnecessarily.  */
-
-	  if (view->abs_x < view->subcompositor->min_x)
-	    {
-	      view->subcompositor->min_x = view->abs_x;
-
-	      /* min_x has already been updated so there is no need to
-		 recompute it later.  */
-	      doflags &= ~DoMinX;
-
-	      /* Also garbage the subcompositor since the bounds
-		 changed.  */
-	      SetGarbaged (view->subcompositor);
-	    }
-
-	  if (view->abs_y < view->subcompositor->min_x)
-	    {
-	      view->subcompositor->min_y = view->abs_y;
-
-	      /* min_y has already been updated so there is no need to
-		 recompute it later.  */
-	      doflags &= ~DoMinY;
-
-	      /* Also garbage the subcompositor since the bounds
-		 changed.  */
-	      SetGarbaged (view->subcompositor);
-	    }
-
-	  /* If moving this view bumps subcompositor.max_x and/or
-	     subcompositor.max_y, don't recompute either.  */
-
-	  if (view->subcompositor->max_x < ViewMaxX (view))
-	    {
-	      view->subcompositor->max_x = ViewMaxX (view);
-
-	      /* max_x has been updated so there is no need to
-		 recompute it later.  If a child is bigger, then
-		 ViewRecomputeChildren will handle it as well.  */
-	      doflags &= ~DoMaxX;
-	    }
-
-	  if (view->subcompositor->max_y < ViewMaxY (view))
-	    {
-	      view->subcompositor->max_y = ViewMaxY (view);
-
-	      /* max_y has been updated so there is no need to
-		 recompute it later.  If a child is bigger, then
-		 ViewRecomputeChildren will handle it as well.  */
-	      doflags &= ~DoMaxY;
-	    }
-	}
-
-      if (view->subcompositor)
-	{
-	  /* Update the subcompositor bounds.  */
-	  SubcompositorUpdateBounds (view->subcompositor, doflags);
-
-	  /* Now calculate the absolute position for this view and all of
-	     its children.  N.B. that this operation can also update
-	     subcompositor.min_x or subcompositor.min_y.  */
-	  ViewRecomputeChildren (view, &doflags);
-
-	  /* If the subcompositor is still not garbaged, union damage
-	     the rest of the way and apply it.  */
-	  if (!IsGarbaged (view->subcompositor))
-	    {
-	      ViewUnionInferiorBounds (view, &damage);
-
-	      pixman_region32_union (&view->subcompositor->additional_damage,
-				     &view->subcompositor->additional_damage,
-				     &damage);
-	    }
-	}
-      else
-	/* Now calculate the absolute position for this view and all
-	   of its children.  */
-	ViewRecomputeChildren (view, &doflags);
-
-      pixman_region32_fini (&damage);
-    }
 }
 
 void
-ViewMoveFractional (View *view, double x, double y)
+ViewMoveFractional(View *view, double x, double y)
 {
-  XLAssert (x < 1.0 && y < 1.0);
+	XLAssert(x < 1.0 && y < 1.0);
 
-  if (view->fract_x == x || view->fract_y == y)
-    return;
+	if (view->fract_x == x || view->fract_y == y)
+		return;
 
-  /* This does not necessitate adjustments to the view size, but does
-     require that the view be redrawn.  */
-  view->fract_x = x;
-  view->fract_y = y;
+	/* This does not necessitate adjustments to the view size, but does
+	   require that the view be redrawn.  */
+	view->fract_x = x;
+	view->fract_y = y;
 
-  if (view->subcompositor)
-    /* Damage the entire view.  */
-    pixman_region32_union_rect (&view->damage, &view->damage,
-				0, 0, view->width, view->height);
+	if (view->subcompositor)
+		/* Damage the entire view.  */
+		pixman_region32_union_rect(&view->damage, &view->damage, 0, 0,
+		    view->width, view->height);
 }
 
 void
-ViewDetach (View *view)
+ViewDetach(View *view)
 {
-  ViewAttachBuffer (view, NULL);
+	ViewAttachBuffer(view, NULL);
 }
 
 void
-ViewMap (View *view)
+ViewMap(View *view)
 {
-  if (!IsViewUnmapped (view))
-    return;
+	if (!IsViewUnmapped(view))
+		return;
 
-  ClearUnmapped (view);
+	ClearUnmapped(view);
 
-  if (view->subcompositor
-      && (view->link != view->inferior || view->buffer))
-    {
-      /* Recompute bounds, if something is attached to the view or it
-	 is not empty.  */
-      SubcompositorUpdateBounds (view->subcompositor, DoAll);
+	if (view->subcompositor &&
+	    (view->link != view->inferior || view->buffer)) {
+		/* Recompute bounds, if something is attached to the view or it
+		   is not empty.  */
+		SubcompositorUpdateBounds(view->subcompositor, DoAll);
 
-      /* Now, if the subcompositor is still not garbaged, damage each
-	 inferior of the view.  */
-      if (!IsGarbaged (view->subcompositor))
-	DamageIncludingInferiors (view);
-    }
-}
-
-void
-ViewUnmap (View *view)
-{
-  pixman_region32_t damage;
-
-  if (IsViewUnmapped (view))
-    return;
-
-  /* Init the damage region.  */
-  pixman_region32_init (&damage);
-  ViewUnionInferiorBounds (view, &damage);
-
-  /* Mark the view as unmapped.  */
-  SetUnmapped (view);
-
-  if (view->subcompositor)
-    {
-      /* Mark the subcompositor as having unmapped views.  */
-      SetPartiallyMapped (view->subcompositor);
-
-      /* If the link pointer is the inferior pointer and there is no
-	 buffer attached to the view, it is empty.  There is no need
-	 to do anything other than marking the subcompositor as
-	 partially mapped.  */
-      if (view->link != view->inferior || view->buffer)
-	{
-	  /* Recompute the bounds of the subcompositor.  */
-	  SubcompositorUpdateBounds (view->subcompositor,
-				     DoAll);
-
-	  /* If the subcompositor is still not garbaged, then apply
-	     the bounds of view and all its inferiors as extra
-	     damage.  */
-	  if (!IsGarbaged (view->subcompositor))
-	    pixman_region32_union (&view->subcompositor->additional_damage,
-				   &view->subcompositor->additional_damage,
-				   &damage);
+		/* Now, if the subcompositor is still not garbaged, damage each
+		   inferior of the view.  */
+		if (!IsGarbaged(view->subcompositor))
+			DamageIncludingInferiors(view);
 	}
-    }
-
-  /* Finalize the damage region.  */
-  pixman_region32_fini (&damage);
 }
 
 void
-ViewFree (View *view)
+ViewUnmap(View *view)
 {
-  /* It's not valid to call this function on a view with children or a
-     parent.  */
-  XLAssert (view->link == view->inferior);
-  XLAssert (view->link->last == view->link);
+	pixman_region32_t damage;
 
-  if (view->buffer)
-    ViewDetach (view);
+	if (IsViewUnmapped(view))
+		return;
 
-  XLFree (view->link);
-  XLFree (view->self);
-  XLFree (view->children);
+	/* Init the damage region.  */
+	pixman_region32_init(&damage);
+	ViewUnionInferiorBounds(view, &damage);
 
-  pixman_region32_fini (&view->damage);
-  pixman_region32_fini (&view->opaque);
-  pixman_region32_fini (&view->input);
+	/* Mark the view as unmapped.  */
+	SetUnmapped(view);
 
-  XLFree (view);
+	if (view->subcompositor) {
+		/* Mark the subcompositor as having unmapped views.  */
+		SetPartiallyMapped(view->subcompositor);
+
+		/* If the link pointer is the inferior pointer and there is no
+		   buffer attached to the view, it is empty.  There is no need
+		   to do anything other than marking the subcompositor as
+		   partially mapped.  */
+		if (view->link != view->inferior || view->buffer) {
+			/* Recompute the bounds of the subcompositor.  */
+			SubcompositorUpdateBounds(view->subcompositor, DoAll);
+
+			/* If the subcompositor is still not garbaged, then
+			   apply the bounds of view and all its inferiors as
+			   extra damage.  */
+			if (!IsGarbaged(view->subcompositor))
+				pixman_region32_union(
+				    &view->subcompositor->additional_damage,
+				    &view->subcompositor->additional_damage,
+				    &damage);
+		}
+	}
+
+	/* Finalize the damage region.  */
+	pixman_region32_fini(&damage);
+}
+
+void
+ViewFree(View *view)
+{
+	/* It's not valid to call this function on a view with children or a
+	   parent.  */
+	XLAssert(view->link == view->inferior);
+	XLAssert(view->link->last == view->link);
+
+	if (view->buffer)
+		ViewDetach(view);
+
+	XLFree(view->link);
+	XLFree(view->self);
+	XLFree(view->children);
+
+	pixman_region32_fini(&view->damage);
+	pixman_region32_fini(&view->opaque);
+	pixman_region32_fini(&view->input);
+
+	XLFree(view);
 }
 
 /* Forward declarations.  */
 
-static void ApplyBufferDamage (View *, pixman_region32_t *);
-static void ApplyUntransformedDamage (View *, pixman_region32_t *);
+static void ApplyBufferDamage(View *, pixman_region32_t *);
+static void ApplyUntransformedDamage(View *, pixman_region32_t *);
 
 void
-ViewDamage (View *view, pixman_region32_t *damage)
+ViewDamage(View *view, pixman_region32_t *damage)
 {
-  /* This damage must be transformed by the viewport and scale, but
-     must NOT be transformed by the subpixel (fractional) offset.  */
-  pixman_region32_union (&view->damage, &view->damage, damage);
+	/* This damage must be transformed by the viewport and scale, but
+	   must NOT be transformed by the subpixel (fractional) offset.  */
+	pixman_region32_union(&view->damage, &view->damage, damage);
 
-  /* Update any attached buffer with the given damage.  */
-  if (view->buffer)
-    ApplyBufferDamage (view, damage);
+	/* Update any attached buffer with the given damage.  */
+	if (view->buffer)
+		ApplyBufferDamage(view, damage);
 }
 
 static double
-GetContentScale (int scale)
+GetContentScale(int scale)
 {
-  if (scale > 0)
-    return 1.0 / (scale + 1);
+	if (scale > 0)
+		return 1.0 / (scale + 1);
 
-  return -scale + 1;
+	return -scale + 1;
 }
 
 static int
-BufferWidthAfterTransform (View *view)
+BufferWidthAfterTransform(View *view)
 {
-  if (RotatesDimensions (view->transform))
-    return XLBufferHeight (view->buffer);
+	if (RotatesDimensions(view->transform))
+		return XLBufferHeight(view->buffer);
 
-  return XLBufferWidth (view->buffer);
+	return XLBufferWidth(view->buffer);
 }
 
 static int
-BufferHeightAfterTransform (View *view)
+BufferHeightAfterTransform(View *view)
 {
-  if (RotatesDimensions (view->transform))
-    return XLBufferWidth (view->buffer);
+	if (RotatesDimensions(view->transform))
+		return XLBufferWidth(view->buffer);
 
-  return XLBufferHeight (view->buffer);
+	return XLBufferHeight(view->buffer);
 }
 
 static void
-TransformBufferDamage (pixman_region32_t *damage,
-		       pixman_region32_t *source,
-		       View *view)
+TransformBufferDamage(pixman_region32_t *damage, pixman_region32_t *source,
+    View *view)
 {
-  int width, height;
+	int width, height;
 
-  /* Calculate the width and height of the buffer after the
-     transform.  */
-  width = XLBufferWidth (view->buffer);
-  height = XLBufferHeight (view->buffer);
+	/* Calculate the width and height of the buffer after the
+	   transform.  */
+	width  = XLBufferWidth(view->buffer);
+	height = XLBufferHeight(view->buffer);
 
-  /* Transform the damage.  */
-  XLTransformRegion (damage, source, view->transform,
-		     width, height);
+	/* Transform the damage.  */
+	XLTransformRegion(damage, source, view->transform, width, height);
 }
 
 void
-ViewDamageBuffer (View *view, pixman_region32_t *damage)
+ViewDamageBuffer(View *view, pixman_region32_t *damage)
 {
-  pixman_region32_t temp;
-  double x_factor, y_factor;
-  double crop_width, stretch_width;
-  double crop_height, stretch_height;
+	pixman_region32_t temp;
+	double		  x_factor, y_factor;
+	double		  crop_width, stretch_width;
+	double		  crop_height, stretch_height;
 
-  if (!view->buffer)
-    return;
+	if (!view->buffer)
+		return;
 
-  if (view->transform == Normal
-      && !view->scale && !IsViewported (view))
-    /* There is no scale, transform, nor viewport.  Just damage the
-       view directly.  */
-    ViewDamage (view, damage);
-  else
-    {
-      /* Otherwise, apply the transform to the view.  */
-      pixman_region32_init (&temp);
+	if (view->transform == Normal && !view->scale && !IsViewported(view))
+		/* There is no scale, transform, nor viewport.  Just damage the
+		   view directly.  */
+		ViewDamage(view, damage);
+	else {
+		/* Otherwise, apply the transform to the view.  */
+		pixman_region32_init(&temp);
 
-      /* First, apply the content scale.  */
-      x_factor = GetContentScale (view->scale);
-      y_factor = GetContentScale (view->scale);
+		/* First, apply the content scale.  */
+		x_factor = GetContentScale(view->scale);
+		y_factor = GetContentScale(view->scale);
 
-      if (view->transform != Normal)
-	{
-	  /* Transform the given buffer damage if need be.  */
-	  TransformBufferDamage (&temp, damage, view);
+		if (view->transform != Normal) {
+			/* Transform the given buffer damage if need be.  */
+			TransformBufferDamage(&temp, damage, view);
 
-	  /* Scale the region.  */
-	  XLScaleRegion (&temp, &temp, x_factor, y_factor);
+			/* Scale the region.  */
+			XLScaleRegion(&temp, &temp, x_factor, y_factor);
+		} else
+			/* Scale the region.  */
+			XLScaleRegion(&temp, damage, x_factor, y_factor);
+
+		/* Next, apply the viewport.  */
+		if (IsViewported(view)) {
+			crop_width     = view->crop_width;
+			crop_height    = view->crop_height;
+			stretch_width  = view->dest_width;
+			stretch_height = view->dest_height;
+
+			/* Offset the region.  */
+			if (view->src_x != 1.0 || view->src_y != 1.0)
+				pixman_region32_translate(&temp, -view->src_x,
+				    -view->src_y);
+
+			/* If the crop width or height were not specified, use
+			   the current buffer width/height.  */
+			if (crop_width == -1) {
+				crop_width  = (BufferWidthAfterTransform(view) *
+				     GetContentScale(view->scale));
+				crop_height = (BufferHeightAfterTransform(
+						   view) *
+				    GetContentScale(view->scale));
+			}
+
+			x_factor = stretch_width / crop_width;
+			y_factor = stretch_height / crop_height;
+
+			/* Scale the region again.  */
+			XLScaleRegion(&temp, &temp, x_factor, y_factor);
+		}
+
+		/* Damage the view.  */
+		pixman_region32_union(&view->damage, &view->damage, &temp);
+		pixman_region32_fini(&temp);
+
+		/* Apply the untransformed damage directly.  */
+		ApplyUntransformedDamage(view, damage);
 	}
-      else
-	/* Scale the region.  */
-	XLScaleRegion (&temp, damage, x_factor, y_factor);
-
-      /* Next, apply the viewport.  */
-      if (IsViewported (view))
-	{
-	  crop_width = view->crop_width;
-	  crop_height = view->crop_height;
-	  stretch_width = view->dest_width;
-	  stretch_height = view->dest_height;
-
-	  /* Offset the region.  */
-	  if (view->src_x != 1.0 || view->src_y != 1.0)
-	    pixman_region32_translate (&temp, -view->src_x,
-				       -view->src_y);
-
-	  /* If the crop width or height were not specified, use the
-	     current buffer width/height.  */
-	  if (crop_width == -1)
-	    {
-	      crop_width = (BufferWidthAfterTransform (view)
-			    * GetContentScale (view->scale));
-	      crop_height = (BufferHeightAfterTransform (view)
-			     * GetContentScale (view->scale));
-	    }
-
-	  x_factor = stretch_width / crop_width;
-	  y_factor = stretch_height / crop_height;
-
-	  /* Scale the region again.  */
-	  XLScaleRegion (&temp, &temp, x_factor, y_factor);
-	}
-
-      /* Damage the view.  */
-      pixman_region32_union (&view->damage, &view->damage, &temp);
-      pixman_region32_fini (&temp);
-
-      /* Apply the untransformed damage directly.  */
-      ApplyUntransformedDamage (view, damage);
-    }
 }
 
 void
-ViewSetOpaque (View *view, pixman_region32_t *opaque)
+ViewSetOpaque(View *view, pixman_region32_t *opaque)
 {
-  pixman_region32_copy (&view->opaque, opaque);
+	pixman_region32_copy(&view->opaque, opaque);
 
-  if (view->subcompositor)
-    SetOpaqueDirty (view->subcompositor);
+	if (view->subcompositor)
+		SetOpaqueDirty(view->subcompositor);
 }
 
 void
-ViewSetInput (View *view, pixman_region32_t *input)
+ViewSetInput(View *view, pixman_region32_t *input)
 {
-  if (pixman_region32_equal (input, &view->input))
-    return;
+	if (pixman_region32_equal(input, &view->input))
+		return;
 
-  pixman_region32_copy (&view->input, input);
+	pixman_region32_copy(&view->input, input);
 
-  if (view->subcompositor)
-    SetInputDirty (view->subcompositor);
+	if (view->subcompositor)
+		SetInputDirty(view->subcompositor);
 }
 
 Subcompositor *
-ViewGetSubcompositor (View *view)
+ViewGetSubcompositor(View *view)
 {
-  return view->subcompositor;
+	return view->subcompositor;
 }
 
 double
-ViewGetContentScale (View *view)
+ViewGetContentScale(View *view)
 {
-  return GetContentScale (view->scale);
+	return GetContentScale(view->scale);
 }
 
 int
-ViewWidth (View *view)
+ViewWidth(View *view)
 {
-  int width;
+	int width;
 
-  if (!view->buffer)
-    return 0;
+	if (!view->buffer)
+		return 0;
 
-  if (IsViewported (view))
-    /* The view has a viewport specified.  view->dest_width and
-       view->dest_height can be fractional values.  When that happens,
-       we simply use the ceiling and rely on the renderer to DTRT with
-       scaling.  */
-    return ceil (view->dest_width);
+	if (IsViewported(view))
+		/* The view has a viewport specified.  view->dest_width and
+		   view->dest_height can be fractional values.  When that
+		   happens, we simply use the ceiling and rely on the renderer
+		   to DTRT with scaling.  */
+		return ceil(view->dest_width);
 
-  width = BufferWidthAfterTransform (view);
+	width = BufferWidthAfterTransform(view);
 
-  if (view->scale < 0)
-    return ceil (width * (abs (view->scale) + 1));
-  else
-    return ceil (width / (view->scale + 1));
+	if (view->scale < 0)
+		return ceil(width * (abs(view->scale) + 1));
+	else
+		return ceil(width / (view->scale + 1));
 }
 
 int
-ViewHeight (View *view)
+ViewHeight(View *view)
 {
-  int height;
+	int height;
 
-  if (!view->buffer)
-    return 0;
+	if (!view->buffer)
+		return 0;
 
-  if (IsViewported (view))
-    /* The view has a viewport specified.  view->dest_width and
-       view->dest_height can be fractional values.  When that happens,
-       we simply use the ceiling and rely on the renderer to DTRT with
-       scaling.  */
-    return ceil (view->dest_height);
+	if (IsViewported(view))
+		/* The view has a viewport specified.  view->dest_width and
+		   view->dest_height can be fractional values.  When that
+		   happens, we simply use the ceiling and rely on the renderer
+		   to DTRT with scaling.  */
+		return ceil(view->dest_height);
 
-  height = BufferHeightAfterTransform (view);
+	height = BufferHeightAfterTransform(view);
 
-  if (view->scale < 0)
-    return ceil (height * (abs (view->scale) + 1));
-  else
-    return ceil (height / (view->scale + 1));
+	if (view->scale < 0)
+		return ceil(height * (abs(view->scale) + 1));
+	else
+		return ceil(height / (view->scale + 1));
 }
 
 void
-ViewSetScale (View *view, int scale)
+ViewSetScale(View *view, int scale)
 {
-  if (view->scale == scale)
-    return;
+	if (view->scale == scale)
+		return;
 
-  view->scale = scale;
+	view->scale = scale;
 
-  /* Recompute subcompositor bounds; they could've changed.  */
-  ViewAfterSizeUpdate (view);
+	/* Recompute subcompositor bounds; they could've changed.  */
+	ViewAfterSizeUpdate(view);
 
-  /* The scale of the view changed, so prior damage cannot be trusted
-     any longer.  */
-  pixman_region32_union_rect (&view->damage, &view->damage,
-			      0, 0, view->width, view->height);
+	/* The scale of the view changed, so prior damage cannot be trusted
+	   any longer.  */
+	pixman_region32_union_rect(&view->damage, &view->damage, 0, 0,
+	    view->width, view->height);
 }
 
 void
-ViewSetTransform (View *view, BufferTransform transform)
+ViewSetTransform(View *view, BufferTransform transform)
 {
-  BufferTransform old_transform;
+	BufferTransform old_transform;
 
-  if (view->transform == transform)
-    return;
+	if (view->transform == transform)
+		return;
 
-  old_transform = view->transform;
-  view->transform = transform;
+	old_transform	= view->transform;
+	view->transform = transform;
 
-  /* Make subsequently applied damage untrusted.  */
-  SetPreviouslyTransformed (view);
+	/* Make subsequently applied damage untrusted.  */
+	SetPreviouslyTransformed(view);
 
-  if (RotatesDimensions (transform)
-      != RotatesDimensions (old_transform))
-    /* Subcompositor bounds may have changed.  */
-    ViewAfterSizeUpdate (view);
+	if (RotatesDimensions(transform) != RotatesDimensions(old_transform))
+		/* Subcompositor bounds may have changed.  */
+		ViewAfterSizeUpdate(view);
 
-  /* The transform of the view changed, so prior damage cannot be
-     trusted any longer.  */
-  pixman_region32_union_rect (&view->damage, &view->damage,
-			      0, 0, view->width, view->height);
+	/* The transform of the view changed, so prior damage cannot be
+	   trusted any longer.  */
+	pixman_region32_union_rect(&view->damage, &view->damage, 0, 0,
+	    view->width, view->height);
 }
 
 void
-ViewSetViewport (View *view, double src_x, double src_y,
-		 double crop_width, double crop_height,
-		 double dest_width, double dest_height)
+ViewSetViewport(View *view, double src_x, double src_y, double crop_width,
+    double crop_height, double dest_width, double dest_height)
 {
-  SetViewported (view);
+	SetViewported(view);
 
-  view->src_x = src_x;
-  view->src_y = src_y;
-  view->crop_width = crop_width;
-  view->crop_height = crop_height;
-  view->dest_width = dest_width;
-  view->dest_height = dest_height;
+	view->src_x	  = src_x;
+	view->src_y	  = src_y;
+	view->crop_width  = crop_width;
+	view->crop_height = crop_height;
+	view->dest_width  = dest_width;
+	view->dest_height = dest_height;
 
-  /* Update min_x and min_y.  */
-  ViewAfterSizeUpdate (view);
+	/* Update min_x and min_y.  */
+	ViewAfterSizeUpdate(view);
 
-  /* The transform of the view changed, so prior damage cannot be
-     trusted any longer.  */
-  pixman_region32_union_rect (&view->damage, &view->damage,
-			      0, 0, view->width, view->height);
+	/* The transform of the view changed, so prior damage cannot be
+	   trusted any longer.  */
+	pixman_region32_union_rect(&view->damage, &view->damage, 0, 0,
+	    view->width, view->height);
 }
 
 void
-ViewClearViewport (View *view)
+ViewClearViewport(View *view)
 {
-  ClearViewported (view);
+	ClearViewported(view);
 
-  /* Update min_x and min_y.  */
-  ViewAfterSizeUpdate (view);
+	/* Update min_x and min_y.  */
+	ViewAfterSizeUpdate(view);
 
-  /* The transform of the view changed, so prior damage cannot be
-     trusted any longer.  */
-  pixman_region32_union_rect (&view->damage, &view->damage,
-			      0, 0, view->width, view->height);
+	/* The transform of the view changed, so prior damage cannot be
+	   trusted any longer.  */
+	pixman_region32_union_rect(&view->damage, &view->damage, 0, 0,
+	    view->width, view->height);
 }
 
 static void
-ViewComputeTransform (View *view, DrawParams *params, Bool draw)
+ViewComputeTransform(View *view, DrawParams *params, Bool draw)
 {
-  /* Compute the effective transform of VIEW, then put it in PARAMS.
-     DRAW means whether or not the transform is intended for drawing;
-     when not set, the parameters are being used for damage tracking
-     instead.  */
+	/* Compute the effective transform of VIEW, then put it in PARAMS.
+	   DRAW means whether or not the transform is intended for drawing;
+	   when not set, the parameters are being used for damage tracking
+	   instead.  */
 
-  /* First, there is no transform.  */
-  params->flags = 0;
-  params->off_x = 0.0;
-  params->off_y = 0.0;
+	/* First, there is no transform.  */
+	params->flags = 0;
+	params->off_x = 0.0;
+	params->off_y = 0.0;
 
-  if (view->transform != Normal)
-    {
-      params->flags |= TransformSet;
-      params->transform = view->transform;
-    }
-
-  if (view->scale)
-    {
-      /* There is a scale, so set it.  */
-      params->flags |= ScaleSet;
-      params->scale = GetContentScale (view->scale);
-    }
-
-  if (IsViewported (view))
-    {
-      /* Set the viewport (a.k.a "stretch" and "offset" in the
-	 rendering code).  */
-
-      params->flags |= StretchSet;
-      params->flags |= OffsetSet;
-
-      params->off_x = view->src_x;
-      params->off_y = view->src_y;
-      params->crop_width = view->crop_width;
-      params->stretch_width = view->dest_width;
-      params->crop_height = view->crop_height;
-      params->stretch_height = view->dest_height;
-
-      /* If the crop width/height were not specified, use the current
-	 buffer width/height.  */
-
-      if (params->crop_width == -1)
-	{
-	  params->crop_width = (BufferWidthAfterTransform (view)
-				* GetContentScale (view->scale));
-	  params->crop_height = (BufferHeightAfterTransform (view)
-				 * GetContentScale (view->scale));
+	if (view->transform != Normal) {
+		params->flags |= TransformSet;
+		params->transform = view->transform;
 	}
-    }
 
-  if ((view->fract_x != 0.0 || view->fract_y != 0.0)
-      && draw)
-    {
-      params->flags |= OffsetSet;
+	if (view->scale) {
+		/* There is a scale, so set it.  */
+		params->flags |= ScaleSet;
+		params->scale = GetContentScale(view->scale);
+	}
 
-      /* This is not entirely right.  When applying a negative offset,
-	 contents to the left of where the picture actually is can
-	 appear to "shine through".  */
-      params->off_x -= view->fract_x;
-      params->off_y -= view->fract_y;
-    }
+	if (IsViewported(view)) {
+		/* Set the viewport (a.k.a "stretch" and "offset" in the
+		   rendering code).  */
+
+		params->flags |= StretchSet;
+		params->flags |= OffsetSet;
+
+		params->off_x	       = view->src_x;
+		params->off_y	       = view->src_y;
+		params->crop_width     = view->crop_width;
+		params->stretch_width  = view->dest_width;
+		params->crop_height    = view->crop_height;
+		params->stretch_height = view->dest_height;
+
+		/* If the crop width/height were not specified, use the current
+		   buffer width/height.  */
+
+		if (params->crop_width == -1) {
+			params->crop_width  = (BufferWidthAfterTransform(view) *
+			     GetContentScale(view->scale));
+			params->crop_height = (BufferHeightAfterTransform(
+						   view) *
+			    GetContentScale(view->scale));
+		}
+	}
+
+	if ((view->fract_x != 0.0 || view->fract_y != 0.0) && draw) {
+		params->flags |= OffsetSet;
+
+		/* This is not entirely right.  When applying a negative offset,
+		   contents to the left of where the picture actually is can
+		   appear to "shine through".  */
+		params->off_x -= view->fract_x;
+		params->off_y -= view->fract_y;
+	}
 }
 
 static void
-ApplyBufferDamage (View *view, pixman_region32_t *damage)
+ApplyBufferDamage(View *view, pixman_region32_t *damage)
 {
-  DrawParams params;
-  RenderBuffer buffer;
+	DrawParams   params;
+	RenderBuffer buffer;
 
-  buffer = XLRenderBufferFromBuffer (view->buffer);
+	buffer = XLRenderBufferFromBuffer(view->buffer);
 
-  /* If the view previously had a transform, then the damage cannot be
-     trusted.  */
-  if (IsPreviouslyTransformed (view))
-    {
-      ClearPreviouslyTransformed (view);
+	/* If the view previously had a transform, then the damage cannot be
+	   trusted.  */
+	if (IsPreviouslyTransformed(view)) {
+		ClearPreviouslyTransformed(view);
 
-      /* Upload the entire buffer.  */
-      params.flags = 0;
-      RenderUpdateBufferForDamage (buffer, NULL, &params);
-      return;
-    }
+		/* Upload the entire buffer.  */
+		params.flags = 0;
+		RenderUpdateBufferForDamage(buffer, NULL, &params);
+		return;
+	}
 
-  /* Compute the transform.  */
-  ViewComputeTransform (view, &params, False);
+	/* Compute the transform.  */
+	ViewComputeTransform(view, &params, False);
 
-  /* Upload the buffer contents.  */
-  RenderUpdateBufferForDamage (buffer, damage, &params);
+	/* Upload the buffer contents.  */
+	RenderUpdateBufferForDamage(buffer, damage, &params);
 }
 
 static void
-ApplyUntransformedDamage (View *view, pixman_region32_t *buffer_damage)
+ApplyUntransformedDamage(View *view, pixman_region32_t *buffer_damage)
 {
-  RenderBuffer buffer;
-  DrawParams params;
+	RenderBuffer buffer;
+	DrawParams   params;
 
-  buffer = XLRenderBufferFromBuffer (view->buffer);
-  params.flags = 0;
+	buffer	     = XLRenderBufferFromBuffer(view->buffer);
+	params.flags = 0;
 
-  /* If the view previously had a transform, then the damage cannot be
-     trusted.  */
-  if (IsPreviouslyTransformed (view))
-    {
-      ClearPreviouslyTransformed (view);
+	/* If the view previously had a transform, then the damage cannot be
+	   trusted.  */
+	if (IsPreviouslyTransformed(view)) {
+		ClearPreviouslyTransformed(view);
 
-      /* Upload the entire buffer.  */
-      RenderUpdateBufferForDamage (buffer, NULL, &params);
-      return;
-    }
+		/* Upload the entire buffer.  */
+		RenderUpdateBufferForDamage(buffer, NULL, &params);
+		return;
+	}
 
-  /* Upload the buffer contents.  */
-  RenderUpdateBufferForDamage (buffer, buffer_damage, &params);
+	/* Upload the buffer contents.  */
+	RenderUpdateBufferForDamage(buffer, buffer_damage, &params);
 }
 
 void
-SubcompositorSetOpaqueCallback (Subcompositor *subcompositor,
-				void (*opaque_changed) (Subcompositor *,
-							void *,
-							pixman_region32_t *),
-				void *data)
+SubcompositorSetOpaqueCallback(Subcompositor *subcompositor,
+    void (*opaque_changed)(Subcompositor *, void *, pixman_region32_t *),
+    void *data)
 {
-  subcompositor->opaque_change = opaque_changed;
-  subcompositor->opaque_change_data = data;
+	subcompositor->opaque_change	  = opaque_changed;
+	subcompositor->opaque_change_data = data;
 }
 
 void
-SubcompositorSetInputCallback (Subcompositor *subcompositor,
-			       void (*input_changed) (Subcompositor *,
-						      void *,
-						      pixman_region32_t *),
-			       void *data)
+SubcompositorSetInputCallback(Subcompositor *subcompositor,
+    void (*input_changed)(Subcompositor *, void *, pixman_region32_t *),
+    void *data)
 {
-  subcompositor->input_change = input_changed;
-  subcompositor->input_change_data = data;
+	subcompositor->input_change	 = input_changed;
+	subcompositor->input_change_data = data;
 }
 
 void
-SubcompositorSetBoundsCallback (Subcompositor *subcompositor,
-				void (*note_bounds) (void *, int, int,
-						     int, int),
-				void *data)
+SubcompositorSetBoundsCallback(Subcompositor *subcompositor,
+    void (*note_bounds)(void *, int, int, int, int), void *data)
 {
-  subcompositor->note_bounds = note_bounds;
-  subcompositor->note_bounds_data = data;
+	subcompositor->note_bounds	= note_bounds;
+	subcompositor->note_bounds_data = data;
 }
 
 void
-SubcompositorSetNoteFrameCallback (Subcompositor *subcompositor,
-				   void (*note_frame) (FrameMode, uint64_t,
-						       void *, uint64_t,
-						       uint64_t),
-				   void *data)
+SubcompositorSetNoteFrameCallback(Subcompositor *subcompositor,
+    void (*note_frame)(FrameMode, uint64_t, void *, uint64_t, uint64_t),
+    void *data)
 {
-  subcompositor->note_frame = note_frame;
-  subcompositor->note_frame_data = data;
+	subcompositor->note_frame      = note_frame;
+	subcompositor->note_frame_data = data;
 }
 
 void
-SubcompositorBounds (Subcompositor *subcompositor,
-		     int *min_x, int *min_y, int *max_x, int *max_y)
+SubcompositorBounds(Subcompositor *subcompositor, int *min_x, int *min_y,
+    int *max_x, int *max_y)
 {
-  *min_x = subcompositor->min_x;
-  *min_y = subcompositor->min_y;
-  *max_x = subcompositor->max_x;
-  *max_y = subcompositor->max_y;
+	*min_x = subcompositor->min_x;
+	*min_y = subcompositor->min_y;
+	*max_x = subcompositor->max_x;
+	*max_y = subcompositor->max_y;
 }
 
 Bool
-SubcompositorIsEmpty (Subcompositor *subcompositor)
+SubcompositorIsEmpty(Subcompositor *subcompositor)
 {
-  return (subcompositor->min_x == subcompositor->max_x
-	  && subcompositor->min_y == subcompositor->max_y);
+	return (subcompositor->min_x == subcompositor->max_x &&
+	    subcompositor->min_y == subcompositor->max_y);
 }
 
 static void
-StorePreviousDamage (Subcompositor *subcompositor,
-		     pixman_region32_t *update_region)
+StorePreviousDamage(Subcompositor *subcompositor,
+    pixman_region32_t		  *update_region)
 {
-  pixman_region32_t *prior;
+	pixman_region32_t *prior;
 
-  if (renderer_flags & NeverAges)
-    /* Aging never happens, so recording prior damage is
-       unnecessary.  */
-    return;
+	if (renderer_flags & NeverAges)
+		/* Aging never happens, so recording prior damage is
+		   unnecessary.  */
+		return;
 
-  /* Move last_damage to prior_damage if it already exists, and find
-     something to hold more damage and set it as last_damage.  There
-     is no need to do this if the render target age never exceeds
-     0.  */
+	/* Move last_damage to prior_damage if it already exists, and find
+	   something to hold more damage and set it as last_damage.  There
+	   is no need to do this if the render target age never exceeds
+	   0.  */
 
-  if (!subcompositor->last_damage)
-    subcompositor->last_damage = &subcompositor->prior_damage[0];
-  else if (!subcompositor->before_damage)
-    {
-      subcompositor->before_damage = subcompositor->last_damage;
-      subcompositor->last_damage = &subcompositor->prior_damage[1];
-    }
-  else
-    {
-      prior = subcompositor->before_damage;
-      subcompositor->before_damage = subcompositor->last_damage;
-      subcompositor->last_damage = prior;
-    }
+	if (!subcompositor->last_damage)
+		subcompositor->last_damage = &subcompositor->prior_damage[0];
+	else if (!subcompositor->before_damage) {
+		subcompositor->before_damage = subcompositor->last_damage;
+		subcompositor->last_damage   = &subcompositor->prior_damage[1];
+	} else {
+		prior			     = subcompositor->before_damage;
+		subcompositor->before_damage = subcompositor->last_damage;
+		subcompositor->last_damage   = prior;
+	}
 
-  /* NULL means use the bounds of the subcompositor.  */
-  if (!update_region)
-    {
-      pixman_region32_fini (subcompositor->last_damage);
-      pixman_region32_init_rect (subcompositor->last_damage,
-				 subcompositor->min_x,
-				 subcompositor->min_y,
-				 subcompositor->max_x,
-				 subcompositor->max_y);
-    }
-  else
-    /* Copy the update region to last_damage.  */
-    pixman_region32_copy (subcompositor->last_damage,
-			  update_region);
+	/* NULL means use the bounds of the subcompositor.  */
+	if (!update_region) {
+		pixman_region32_fini(subcompositor->last_damage);
+		pixman_region32_init_rect(subcompositor->last_damage,
+		    subcompositor->min_x, subcompositor->min_y,
+		    subcompositor->max_x, subcompositor->max_y);
+	} else
+		/* Copy the update region to last_damage.  */
+		pixman_region32_copy(subcompositor->last_damage, update_region);
 }
 
 static void
-PresentCompletedCallback (void *data, uint64_t msc, uint64_t ust)
+PresentCompletedCallback(void *data, uint64_t msc, uint64_t ust)
 {
-  Subcompositor *subcompositor;
+	Subcompositor *subcompositor;
 
-  subcompositor = data;
+	subcompositor = data;
 
-  /* The presentation callback should still be set here.  */
-  XLAssert (subcompositor->present_key != NULL);
-  subcompositor->present_key = NULL;
+	/* The presentation callback should still be set here.  */
+	XLAssert(subcompositor->present_key != NULL);
+	subcompositor->present_key = NULL;
 
-  /* Call the presentation callback if it is still set.  */
-  if (subcompositor->note_frame)
-    subcompositor->note_frame (ModePresented,
-			       subcompositor->frame_counter,
-			       subcompositor->note_frame_data,
-			       msc, ust);
+	/* Call the presentation callback if it is still set.  */
+	if (subcompositor->note_frame)
+		subcompositor->note_frame(ModePresented,
+		    subcompositor->frame_counter,
+		    subcompositor->note_frame_data, msc, ust);
 }
 
 static void
-RenderCompletedCallback (void *data, uint64_t msc, uint64_t ust)
+RenderCompletedCallback(void *data, uint64_t msc, uint64_t ust)
 {
-  Subcompositor *subcompositor;
+	Subcompositor *subcompositor;
 
-  subcompositor = data;
+	subcompositor = data;
 
-  /* The render completion callback must still be set here.  */
-  XLAssert (subcompositor->render_key != NULL);
-  subcompositor->render_key = NULL;
+	/* The render completion callback must still be set here.  */
+	XLAssert(subcompositor->render_key != NULL);
+	subcompositor->render_key = NULL;
 
-  /* Call the frame function if it s still set.  */
-  if (subcompositor->note_frame)
-    subcompositor->note_frame (ModePresented,
-			       subcompositor->frame_counter,
-			       subcompositor->note_frame_data,
-			       msc, ust);
+	/* Call the frame function if it s still set.  */
+	if (subcompositor->note_frame)
+		subcompositor->note_frame(ModePresented,
+		    subcompositor->frame_counter,
+		    subcompositor->note_frame_data, msc, ust);
 }
 
 /* Update ancillary data upon commit.  This includes the input and
    opaque regions.  */
 
 static void
-SubcompositorUpdateAncillary (Subcompositor *subcompositor)
+SubcompositorUpdateAncillary(Subcompositor *subcompositor)
 {
-  Bool update_input, update_opaque;
-  List *list;
-  View *view;
-  pixman_region32_t input, opaque, temp;
+	Bool		  update_input, update_opaque;
+	List		 *list;
+	View		 *view;
+	pixman_region32_t input, opaque, temp;
 
-  if (IsGarbaged (subcompositor))
-    {
-      update_opaque
-	= subcompositor->opaque_change != NULL;
-      update_input
-	= subcompositor->input_change != NULL;
+	if (IsGarbaged(subcompositor)) {
+		update_opaque = subcompositor->opaque_change != NULL;
+		update_input  = subcompositor->input_change != NULL;
 
-      pixman_region32_init (&input);
-      pixman_region32_init (&opaque);
-    }
-  else
-    {
-      update_opaque = (IsOpaqueDirty (subcompositor)
-		       && subcompositor->opaque_change);
-      update_input = (IsInputDirty (subcompositor)
-		      && subcompositor->input_change);
+		pixman_region32_init(&input);
+		pixman_region32_init(&opaque);
+	} else {
+		update_opaque = (IsOpaqueDirty(subcompositor) &&
+		    subcompositor->opaque_change);
+		update_input  = (IsInputDirty(subcompositor) &&
+		     subcompositor->input_change);
 
-      if (update_input)
-	pixman_region32_init (&input);
+		if (update_input)
+			pixman_region32_init(&input);
 
-      if (update_opaque)
-	pixman_region32_init (&opaque);
-    }
-
-  if (!update_input && !update_opaque)
-    /* There is nothing to update.  */
-    return;
-
-  /* This is a temporary region used for some operations.  */
-  pixman_region32_init (&temp);
-
-  list = subcompositor->inferiors->next;
-
-  while (list != subcompositor->inferiors)
-    {
-      SkipSlug (list, view, next);
-
-      if (update_input)
-	{
-	  /* Add this view's input region to the total.  */
-	  pixman_region32_intersect_rect (&temp, &view->input, 0, 0,
-					  view->width, view->height);
-	  pixman_region32_translate (&temp, view->abs_x, view->abs_y);
-	  pixman_region32_union (&input, &input, &temp);
+		if (update_opaque)
+			pixman_region32_init(&opaque);
 	}
 
-      if (update_opaque)
-	{
-	  /* Add this view's opaque region to the total.  */
-	  pixman_region32_intersect_rect (&temp, &view->opaque, 0, 0,
-					  view->width, view->height);
-	  pixman_region32_translate (&temp, view->abs_x, view->abs_y);
-	  pixman_region32_union (&opaque, &opaque, &temp);
+	if (!update_input && !update_opaque)
+		/* There is nothing to update.  */
+		return;
+
+	/* This is a temporary region used for some operations.  */
+	pixman_region32_init(&temp);
+
+	list = subcompositor->inferiors->next;
+
+	while (list != subcompositor->inferiors) {
+		SkipSlug(list, view, next);
+
+		if (update_input) {
+			/* Add this view's input region to the total.  */
+			pixman_region32_intersect_rect(&temp, &view->input, 0,
+			    0, view->width, view->height);
+			pixman_region32_translate(&temp, view->abs_x,
+			    view->abs_y);
+			pixman_region32_union(&input, &input, &temp);
+		}
+
+		if (update_opaque) {
+			/* Add this view's opaque region to the total.  */
+			pixman_region32_intersect_rect(&temp, &view->opaque, 0,
+			    0, view->width, view->height);
+			pixman_region32_translate(&temp, view->abs_x,
+			    view->abs_y);
+			pixman_region32_union(&opaque, &opaque, &temp);
+		}
+
+	next:
+		list = list->next;
 	}
 
-    next:
-      list = list->next;
-    }
+	/* Now, notify the client of any changes.  */
 
-  /* Now, notify the client of any changes.  */
+	if (update_input)
+		subcompositor->input_change(subcompositor,
+		    subcompositor->input_change_data, &input);
 
-  if (update_input)
-    subcompositor->input_change (subcompositor,
-				 subcompositor->input_change_data,
-				 &input);
+	if (update_opaque)
+		subcompositor->opaque_change(subcompositor,
+		    subcompositor->opaque_change_data, &opaque);
 
-  if (update_opaque)
-    subcompositor->opaque_change (subcompositor,
-				  subcompositor->opaque_change_data,
-				  &opaque);
+	/* And free the temp regions.  */
 
-  /* And free the temp regions.  */
+	pixman_region32_fini(&temp);
 
-  pixman_region32_fini (&temp);
+	if (update_input)
+		pixman_region32_fini(&input);
 
-  if (update_input)
-    pixman_region32_fini (&input);
+	if (update_opaque)
+		pixman_region32_fini(&opaque);
 
-  if (update_opaque)
-    pixman_region32_fini (&opaque);
-
-  subcompositor->state &= ~SubcompositorIsOpaqueDirty;
-  subcompositor->state &= ~SubcompositorIsInputDirty;
+	subcompositor->state &= ~SubcompositorIsOpaqueDirty;
+	subcompositor->state &= ~SubcompositorIsInputDirty;
 }
 
 static pixman_region32_t *
-CopyRegion (pixman_region32_t *source)
+CopyRegion(pixman_region32_t *source)
 {
-  pixman_region32_t *region;
+	pixman_region32_t *region;
 
-  region = XLMalloc (sizeof *region);
-  pixman_region32_init (region);
-  pixman_region32_copy (region, source);
+	region = XLMalloc(sizeof *region);
+	pixman_region32_init(region);
+	pixman_region32_copy(region, source);
 
-  return region;
+	return region;
 }
 
 static void
-FreeRegion (pixman_region32_t *region)
+FreeRegion(pixman_region32_t *region)
 {
-  pixman_region32_fini (region);
-  XLFree (region);
+	pixman_region32_fini(region);
+	XLFree(region);
 }
 
 static Bool
-AnyParentUnmapped (View *view, List **link)
+AnyParentUnmapped(View *view, List **link)
 {
-  View *unmapped;
+	View *unmapped;
 
-  if (!IsPartiallyMapped (view->subcompositor))
-    return False;
+	if (!IsPartiallyMapped(view->subcompositor))
+		return False;
 
-  /* Find the topmost unmapped parent of VIEW, or VIEW itself, if any,
-     and set *link to its link pointer.  */
-  unmapped = NULL;
+	/* Find the topmost unmapped parent of VIEW, or VIEW itself, if any,
+	   and set *link to its link pointer.  */
+	unmapped = NULL;
 
-  while (view)
-    {
-      if (IsViewUnmapped (view))
-	unmapped = view;
+	while (view) {
+		if (IsViewUnmapped(view))
+			unmapped = view;
 
-      view = view->parent;
-    }
-
-  if (unmapped)
-    {
-      *link = unmapped->link;
-      return True;
-    }
-
-  return False;
-}
-
-static void
-DoCull (Subcompositor *subcompositor, pixman_region32_t *damage,
-	pixman_region32_t *background)
-{
-  List *list;
-  View *view;
-  pixman_region32_t temp;
-  RenderBuffer buffer;
-
-  view = NULL;
-
-  /* Process the background region.  The background must at most be
-     drawn beneath the damage; anywhere else, it will be obscured by
-     the opaque parts of views above or the bottommost view.  */
-  pixman_region32_intersect (background, background, damage);
-
-  /* Perform culling.  Walk the inferior list from top to bottom.
-     Each time a view is encountered and has an opaque region, set
-     damage as its "clip region", and then subtract its opaque region
-     from damage.  */
-
-  pixman_region32_init (&temp);
-  list = subcompositor->inferiors->last;
-  while (list != subcompositor->inferiors)
-    {
-      if (!list->view)
-	goto last;
-
-      if (AnyParentUnmapped (list->view, &list))
-	/* Skip the unmapped view.  */
-	goto last;
-
-      if (!list->view->buffer)
-	goto last;
-
-      view = list->view;
-      buffer = XLRenderBufferFromBuffer (list->view->buffer);
-
-      /* Set view's cull region to the intersection of the current
-	 region and its bounds.  */
-      pixman_region32_intersect_rect (&temp, damage,
-				      view->abs_x,
-				      view->abs_y,
-				      view->width,
-				      view->height);
-
-      /* The cull region must be destroyed after this code is called.
-	 If it is not then it will be leaked.  */
-      XLAssert (view->cull_region == NULL);
-
-      /* Don't set the cull region if it is empty.  */
-      if (pixman_region32_not_empty (&temp))
-	view->cull_region = CopyRegion (&temp);
-
-      /* Subtract the damage region by the view's opaque region.  */
-
-      if (!pixman_region32_not_empty (&view->opaque))
-	goto last;
-
-      if (RenderIsBufferOpaque (buffer))
-	{
-	  /* If the buffer is opaque, we can just ignore its opaque
-	     region.  */
-	  pixman_region32_clear (&temp);
-	  pixman_region32_union_rect (&temp, &temp, view->abs_x,
-				      view->abs_y, view->width,
-				      view->height);
-	}
-      else
-	{
-	  pixman_region32_intersect_rect (&temp, &view->opaque, 0, 0,
-					  view->width, view->height);
-	  pixman_region32_translate (&temp, view->abs_x, view->abs_y);
+		view = view->parent;
 	}
 
-      pixman_region32_subtract (damage, damage, &temp);
+	if (unmapped) {
+		*link = unmapped->link;
+		return True;
+	}
 
-      /* Also subtract the opaque region from the background.  */
-      pixman_region32_subtract (background, background, &temp);
-
-      /* If damage is already empty, finish early.  */
-      if (!pixman_region32_not_empty (damage))
-	break;
-
-    last:
-      list = list->last;
-    }
-
-  if (view && view->cull_region)
-    /* Also subtract the region of the bottommost view that will be
-       drawn from the background, as it will use PictOpCopy.  */
-    pixman_region32_subtract (background, background, view->cull_region);
-
-  pixman_region32_fini (&temp);
+	return False;
 }
 
 static void
-DrawBackground (Subcompositor *subcompositor, pixman_region32_t *damage)
+DoCull(Subcompositor *subcompositor, pixman_region32_t *damage,
+    pixman_region32_t *background)
 {
-  pixman_box32_t *boxes;
-  int nboxes;
+	List		 *list;
+	View		 *view;
+	pixman_region32_t temp;
+	RenderBuffer	  buffer;
 
-  boxes = pixman_region32_rectangles (damage, &nboxes);
+	view = NULL;
 
-  if (nboxes)
-    RenderFillBoxesWithTransparency (subcompositor->target, boxes,
-				     nboxes, subcompositor->min_x,
-				     subcompositor->min_y);
+	/* Process the background region.  The background must at most be
+	   drawn beneath the damage; anywhere else, it will be obscured by
+	   the opaque parts of views above or the bottommost view.  */
+	pixman_region32_intersect(background, background, damage);
+
+	/* Perform culling.  Walk the inferior list from top to bottom.
+	   Each time a view is encountered and has an opaque region, set
+	   damage as its "clip region", and then subtract its opaque region
+	   from damage.  */
+
+	pixman_region32_init(&temp);
+	list = subcompositor->inferiors->last;
+	while (list != subcompositor->inferiors) {
+		if (!list->view)
+			goto last;
+
+		if (AnyParentUnmapped(list->view, &list))
+			/* Skip the unmapped view.  */
+			goto last;
+
+		if (!list->view->buffer)
+			goto last;
+
+		view   = list->view;
+		buffer = XLRenderBufferFromBuffer(list->view->buffer);
+
+		/* Set view's cull region to the intersection of the current
+		   region and its bounds.  */
+		pixman_region32_intersect_rect(&temp, damage, view->abs_x,
+		    view->abs_y, view->width, view->height);
+
+		/* The cull region must be destroyed after this code is called.
+		   If it is not then it will be leaked.  */
+		XLAssert(view->cull_region == NULL);
+
+		/* Don't set the cull region if it is empty.  */
+		if (pixman_region32_not_empty(&temp))
+			view->cull_region = CopyRegion(&temp);
+
+		/* Subtract the damage region by the view's opaque region.  */
+
+		if (!pixman_region32_not_empty(&view->opaque))
+			goto last;
+
+		if (RenderIsBufferOpaque(buffer)) {
+			/* If the buffer is opaque, we can just ignore its
+			   opaque region.  */
+			pixman_region32_clear(&temp);
+			pixman_region32_union_rect(&temp, &temp, view->abs_x,
+			    view->abs_y, view->width, view->height);
+		} else {
+			pixman_region32_intersect_rect(&temp, &view->opaque, 0,
+			    0, view->width, view->height);
+			pixman_region32_translate(&temp, view->abs_x,
+			    view->abs_y);
+		}
+
+		pixman_region32_subtract(damage, damage, &temp);
+
+		/* Also subtract the opaque region from the background.  */
+		pixman_region32_subtract(background, background, &temp);
+
+		/* If damage is already empty, finish early.  */
+		if (!pixman_region32_not_empty(damage))
+			break;
+
+	last:
+		list = list->last;
+	}
+
+	if (view && view->cull_region)
+		/* Also subtract the region of the bottommost view that will be
+		   drawn from the background, as it will use PictOpCopy.  */
+		pixman_region32_subtract(background, background,
+		    view->cull_region);
+
+	pixman_region32_fini(&temp);
 }
 
 static void
-CompositeSingleView (View *view, pixman_region32_t *region,
-		     Operation op, DrawParams *transform)
+DrawBackground(Subcompositor *subcompositor, pixman_region32_t *damage)
 {
-  pixman_box32_t *boxes;
-  int nboxes, i;
-  RenderBuffer buffer;
-  int min_x, min_y, tx, ty;
-  Subcompositor *subcompositor;
+	pixman_box32_t *boxes;
+	int		nboxes;
 
-  subcompositor = view->subcompositor;
-  min_x = subcompositor->min_x;
-  min_y = subcompositor->min_y;
-  tx = subcompositor->tx;
-  ty = subcompositor->ty;
+	boxes = pixman_region32_rectangles(damage, &nboxes);
 
-  boxes = pixman_region32_rectangles (region, &nboxes);
-  buffer = XLRenderBufferFromBuffer (view->buffer);
-
-  for (i = 0; i < nboxes; ++i)
-    RenderComposite (buffer, view->subcompositor->target, op,
-		     /* src-x.  */
-		     boxes[i].x1 - view->abs_x,
-		     /* src-y.  */
-		     boxes[i].y1 - view->abs_y,
-		     /* dst-x.  */
-		     boxes[i].x1 - min_x + tx,
-		     /* dst-y.  */
-		     boxes[i].y1 - min_y + ty,
-		     /* width.  */
-		     boxes[i].x2 - boxes[i].x1,
-		     /* height.  */
-		     boxes[i].y2 - boxes[i].y1,
-		     /* draw-params.  */
-		     transform);
+	if (nboxes)
+		RenderFillBoxesWithTransparency(subcompositor->target, boxes,
+		    nboxes, subcompositor->min_x, subcompositor->min_y);
 }
 
 static void
-InitBackground (Subcompositor *subcompositor,
-		pixman_region32_t *region)
+CompositeSingleView(View *view, pixman_region32_t *region, Operation op,
+    DrawParams *transform)
 {
-  int min_x, min_y, max_x, max_y;
+	pixman_box32_t *boxes;
+	int		nboxes, i;
+	RenderBuffer	buffer;
+	int		min_x, min_y, tx, ty;
+	Subcompositor  *subcompositor;
 
-  min_x = subcompositor->min_x;
-  min_y = subcompositor->min_y;
-  max_x = subcompositor->max_x;
-  max_y = subcompositor->max_y;
+	subcompositor = view->subcompositor;
+	min_x	      = subcompositor->min_x;
+	min_y	      = subcompositor->min_y;
+	tx	      = subcompositor->tx;
+	ty	      = subcompositor->ty;
 
-  pixman_region32_init_rect (region, min_x, min_y,
-			     max_x - min_x + 1,
-			     max_y - min_y + 1);
+	boxes  = pixman_region32_rectangles(region, &nboxes);
+	buffer = XLRenderBufferFromBuffer(view->buffer);
+
+	for (i = 0; i < nboxes; ++i)
+		RenderComposite(buffer, view->subcompositor->target, op,
+		    /* src-x.  */
+		    boxes[i].x1 - view->abs_x,
+		    /* src-y.  */
+		    boxes[i].y1 - view->abs_y,
+		    /* dst-x.  */
+		    boxes[i].x1 - min_x + tx,
+		    /* dst-y.  */
+		    boxes[i].y1 - min_y + ty,
+		    /* width.  */
+		    boxes[i].x2 - boxes[i].x1,
+		    /* height.  */
+		    boxes[i].y2 - boxes[i].y1,
+		    /* draw-params.  */
+		    transform);
+}
+
+static void
+InitBackground(Subcompositor *subcompositor, pixman_region32_t *region)
+{
+	int min_x, min_y, max_x, max_y;
+
+	min_x = subcompositor->min_x;
+	min_y = subcompositor->min_y;
+	max_x = subcompositor->max_x;
+	max_y = subcompositor->max_y;
+
+	pixman_region32_init_rect(region, min_x, min_y, max_x - min_x + 1,
+	    max_y - min_y + 1);
 }
 
 static Bool
-TryPresent (View *view, pixman_region32_t *damage, DrawParams *transform)
+TryPresent(View *view, pixman_region32_t *damage, DrawParams *transform)
 {
-  PresentCompletionKey key, existing_key;
-  RenderBuffer buffer;
+	PresentCompletionKey key, existing_key;
+	RenderBuffer	     buffer;
 
-  if (view->abs_x == view->subcompositor->min_x
-      && view->abs_y == view->subcompositor->min_y
-      && view->width == (view->subcompositor->max_x
-			 - view->subcompositor->min_x
-			 + 1)
-      && view->height == (view->subcompositor->max_y
-			  - view->subcompositor->min_y
-			  + 1)
-      && view->subcompositor->note_frame
-      && !transform->flags)
-    {
-      buffer = XLRenderBufferFromBuffer (view->buffer);
+	if (view->abs_x == view->subcompositor->min_x &&
+	    view->abs_y == view->subcompositor->min_y &&
+	    view->width ==
+		(view->subcompositor->max_x - view->subcompositor->min_x + 1) &&
+	    view->height ==
+		(view->subcompositor->max_y - view->subcompositor->min_y + 1) &&
+	    view->subcompositor->note_frame && !transform->flags) {
+		buffer = XLRenderBufferFromBuffer(view->buffer);
 
-      /* Now, we know that the view overlaps the entire subcompositor
-	 and has no transforms, and can thus be presented.  Translate
-	 the damage into the window coordinate space.  */
-      pixman_region32_translate (damage, -view->subcompositor->min_x,
-				 -view->subcompositor->min_y);
+		/* Now, we know that the view overlaps the entire subcompositor
+		   and has no transforms, and can thus be presented.  Translate
+		   the damage into the window coordinate space.  */
+		pixman_region32_translate(damage, -view->subcompositor->min_x,
+		    -view->subcompositor->min_y);
 
-      /* Present the buffer with the given damage.  */
-      key = RenderPresentToWindow (view->subcompositor->target, buffer,
-				   damage, PresentCompletedCallback,
-				   view->subcompositor);
+		/* Present the buffer with the given damage.  */
+		key = RenderPresentToWindow(view->subcompositor->target, buffer,
+		    damage, PresentCompletedCallback, view->subcompositor);
 
-      /* Translate the damage back.  */
-      pixman_region32_translate (damage, view->subcompositor->min_x,
-				 view->subcompositor->min_y);
+		/* Translate the damage back.  */
+		pixman_region32_translate(damage, view->subcompositor->min_x,
+		    view->subcompositor->min_y);
 
-      if (key)
-	{
-	  /* BeginFrame should have canceled the presentation.
-	     However, a present key may still exist if this
-	     presentation is being done in response to an
-	     exposure.  */
-	  existing_key = view->subcompositor->present_key;
+		if (key) {
+			/* BeginFrame should have canceled the presentation.
+			   However, a present key may still exist if this
+			   presentation is being done in response to an
+			   exposure.  */
+			existing_key = view->subcompositor->present_key;
 
-	  if (existing_key)
-	    RenderCancelPresentationCallback (existing_key);
+			if (existing_key)
+				RenderCancelPresentationCallback(existing_key);
 
-	  /* Do the same for the render completion callback, if
-	     any.  */
-	  if (view->subcompositor->render_key)
-	    RenderCancelCompletionCallback (view->subcompositor->render_key);
-	  view->subcompositor->render_key = NULL;
+			/* Do the same for the render completion callback, if
+			   any.  */
+			if (view->subcompositor->render_key)
+				RenderCancelCompletionCallback(
+				    view->subcompositor->render_key);
+			view->subcompositor->render_key = NULL;
 
-	  /* Presentation was successful.  Attach the presentation key
-	     to the subcompositor.  */
-	  view->subcompositor->present_key = key;
-	  return True;
+			/* Presentation was successful.  Attach the presentation
+			   key to the subcompositor.  */
+			view->subcompositor->present_key = key;
+			return True;
+		}
 	}
-    }
 
-  /* Presentation failed.  */
-  return False;
+	/* Presentation failed.  */
+	return False;
 }
 
 static void
-ClearDamage (Subcompositor *subcompositor)
+ClearDamage(Subcompositor *subcompositor)
 {
-  List *list;
-  View *view;
+	List *list;
+	View *view;
 
-  list = subcompositor->inferiors->next;
+	list = subcompositor->inferiors->next;
 
-  while (list != subcompositor->inferiors)
-    {
-      SkipSlug (list, view, next);
+	while (list != subcompositor->inferiors) {
+		SkipSlug(list, view, next);
 
-      /* Clear the damage.  */
-      pixman_region32_clear (&view->damage);
+		/* Clear the damage.  */
+		pixman_region32_clear(&view->damage);
 
-    next:
-      list = list->next;
-    }
+	next:
+		list = list->next;
+	}
 }
 
 static void
-ClearCull (Subcompositor *subcompositor)
+ClearCull(Subcompositor *subcompositor)
 {
-  List *list;
-  View *view;
+	List *list;
+	View *view;
 
-  /* Free the cull region of every view.  */
-  list = subcompositor->inferiors->next;
-  view = NULL;
+	/* Free the cull region of every view.  */
+	list = subcompositor->inferiors->next;
+	view = NULL;
 
-  while (list != subcompositor->inferiors)
-    {
-      SkipSlug (list, view, next);
+	while (list != subcompositor->inferiors) {
+		SkipSlug(list, view, next);
 
-      if (view->cull_region)
-	FreeRegion (view->cull_region);
-      view->cull_region = NULL;
+		if (view->cull_region)
+			FreeRegion(view->cull_region);
+		view->cull_region = NULL;
 
-    next:
-      list = list->next;
-    }
+	next:
+		list = list->next;
+	}
 }
 
 static Bool
-CheckBailOnDraw (Subcompositor *subcompositor)
+CheckBailOnDraw(Subcompositor *subcompositor)
 {
-  List *list;
-  View *view;
+	List *list;
+	View *view;
 
-  list = subcompositor->inferiors->next;
-  view = NULL;
+	list = subcompositor->inferiors->next;
+	view = NULL;
 
-  while (list != subcompositor->inferiors)
-    {
-      if (view && view->cull_region)
-	/* This view will be drawn beneath some other view, so
-	   presentation is not possible.  */
-	goto need_bail;
+	while (list != subcompositor->inferiors) {
+		if (view && view->cull_region)
+			/* This view will be drawn beneath some other view, so
+			   presentation is not possible.  */
+			goto need_bail;
 
-      SkipSlug (list, view, next);
+		SkipSlug(list, view, next);
 
-    next:
-      list = list->next;
-    }
+	next:
+		list = list->next;
+	}
 
-  /* This only means that views prior to the last view will not be
-     drawn.  We won't know if the topmost view can be presented until
-     we actually try.  */
-  return True;
+	/* This only means that views prior to the last view will not be
+	   drawn.  We won't know if the topmost view can be presented until
+	   we actually try.  */
+	return True;
 
- need_bail:
-  ClearCull (subcompositor);
+need_bail:
+	ClearCull(subcompositor);
 
-  /* And bail out.  */
-  return False;
+	/* And bail out.  */
+	return False;
 }
 
 static Bool
-SubcompositorComposite1 (Subcompositor *subcompositor,
-			 pixman_region32_t *damage,
-			 Bool bail_on_draw)
+SubcompositorComposite1(Subcompositor *subcompositor, pixman_region32_t *damage,
+    Bool bail_on_draw)
 {
-  List *list;
-  View *view;
-  pixman_region32_t background;
-  Operation op;
-  pixman_region32_t copy;
-  DrawParams transform;
-  Bool success, presented;
-  RenderCompletionKey key;
+	List		   *list;
+	View		   *view;
+	pixman_region32_t   background;
+	Operation	    op;
+	pixman_region32_t   copy;
+	DrawParams	    transform;
+	Bool		    success, presented;
+	RenderCompletionKey key;
 
-  /* Draw the first view by copying.  */
-  op = OperationSource;
-  pixman_region32_init (&copy);
-  pixman_region32_copy (&copy, damage);
+	/* Draw the first view by copying.  */
+	op = OperationSource;
+	pixman_region32_init(&copy);
+	pixman_region32_copy(&copy, damage);
 
-  /* Initialize the background region.  */
-  InitBackground (subcompositor, &background);
+	/* Initialize the background region.  */
+	InitBackground(subcompositor, &background);
 
-  /* Cull out parts of the damage that are obscured by opaque portions
-     of views.  */
-  DoCull (subcompositor, damage, &background);
+	/* Cull out parts of the damage that are obscured by opaque portions
+	   of views.  */
+	DoCull(subcompositor, damage, &background);
 
-  if (pixman_region32_not_empty (&background))
-    {
-      /* The background has to be drawn below the bottommost view, so
-	 presentation is not possible.  Return if bail_on_draw.  */
-      if (bail_on_draw)
-	{
-	  /* Free the cull regions and temp regions.  */
-	  pixman_region32_fini (&background);
-	  pixman_region32_fini (&copy);
-	  ClearCull (subcompositor);
+	if (pixman_region32_not_empty(&background)) {
+		/* The background has to be drawn below the bottommost view, so
+		   presentation is not possible.  Return if bail_on_draw.  */
+		if (bail_on_draw) {
+			/* Free the cull regions and temp regions.  */
+			pixman_region32_fini(&background);
+			pixman_region32_fini(&copy);
+			ClearCull(subcompositor);
 
-	  return False;
+			return False;
+		}
+
+		/* Now draw the background.  */
+		DrawBackground(subcompositor, &background);
 	}
 
-      /* Now draw the background.  */
-      DrawBackground (subcompositor, &background);
-    }
+	/* Free the background region.  */
+	pixman_region32_fini(&background);
 
-  /* Free the background region.  */
-  pixman_region32_fini (&background);
+	/* bail_on_draw means that this function should return and let
+	   SubcompositorUpdate draw again upon encountering a view that
+	   cannot be presented.  */
 
-  /* bail_on_draw means that this function should return and let
-     SubcompositorUpdate draw again upon encountering a view that
-     cannot be presented.  */
+	if (bail_on_draw && !CheckBailOnDraw(subcompositor)) {
+		/* Free the temp region.  */
+		pixman_region32_fini(&copy);
 
-  if (bail_on_draw && !CheckBailOnDraw (subcompositor))
-    {
-      /* Free the temp region.  */
-      pixman_region32_fini (&copy);
-
-      return False;
-    }
-
-  list = subcompositor->inferiors->next;
-
-  /* Also recalculate whether or not the subcompositor is partially
-     mapped while at this.  */
-  subcompositor->state &= ~SubcompositorIsPartiallyMapped;
-
-  /* Start rendering.  */
-  RenderStartRender (subcompositor->target);
-  view = NULL;
-  success = True;
-  presented = False;
-
-  while (list != subcompositor->inferiors)
-    {
-      /* Update the views at the start of the loop.  Thus, if there is
-	 only a single view, we can present it instead.  */
-
-      if (view && view->cull_region)
-	{
-	  /* Compute the transform.  */
-	  ViewComputeTransform (view, &transform, True);
-
-	  /* Copy or composite the view contents.  */
-	  CompositeSingleView (view, view->cull_region, op,
-			       &transform);
-
-	  /* And free the cull region.  */
-	  FreeRegion (view->cull_region);
-	  view->cull_region = NULL;
-
-	  /* Subsequent views should be composited.  */
-	  op = OperationOver;
+		return False;
 	}
 
-      SkipSlug (list, view, next);
+	list = subcompositor->inferiors->next;
 
-    next:
-      list = list->next;
-    }
+	/* Also recalculate whether or not the subcompositor is partially
+	   mapped while at this.  */
+	subcompositor->state &= ~SubcompositorIsPartiallyMapped;
 
-  /* Finally, update the last view.  */
-  if (view && view->cull_region)
-    {
-      /* Compute the transform.  */
-      ViewComputeTransform (view, &transform, True);
+	/* Start rendering.  */
+	RenderStartRender(subcompositor->target);
+	view	  = NULL;
+	success	  = True;
+	presented = False;
 
-      /* This is the topmost view.  If there are no preceeding
-	 views, present it.  */
-      if (op != OperationSource
-	  || !TryPresent (view, view->cull_region, &transform))
-	{
-	  if (bail_on_draw)
-	    /* CompositeSingleView will be called, bail! */
-	    success = False;
-	  else
-	    /* Copy or composite the view contents.  */
-	    CompositeSingleView (view, view->cull_region, op,
-				 &transform);
-	}
-      else
-	/* Set this flag to true so the code below doesn't scribble
-	   over the presentation callback.  */
-	presented = True;
+	while (list != subcompositor->inferiors) {
+		/* Update the views at the start of the loop.  Thus, if there is
+		   only a single view, we can present it instead.  */
 
-      /* And free the cull region.  */
-      FreeRegion (view->cull_region);
-      view->cull_region = NULL;
-    }
+		if (view && view->cull_region) {
+			/* Compute the transform.  */
+			ViewComputeTransform(view, &transform, True);
 
-  /* If a note_frame callback is attached, then this function can pass
-     a RenderCompletedCallback to the picture renderer and have it
-     present the back buffer to the window.  If not, however, it must
-     use XCopyArea so that the buffer swap is done in order wrt to
-     other requests.  */
+			/* Copy or composite the view contents.  */
+			CompositeSingleView(view, view->cull_region, op,
+			    &transform);
 
-  if (subcompositor->note_frame && !presented)
-    {
-      /* This goes down the XPresentPixmap code path.  N.B. that no
-	 buffer swap must happen if presentation happened.  */
-      if (subcompositor->render_key)
-	RenderCancelCompletionCallback (subcompositor->render_key);
-      if (subcompositor->present_key)
-	RenderCancelPresentationCallback (subcompositor->present_key);
-      subcompositor->present_key = NULL;
+			/* And free the cull region.  */
+			FreeRegion(view->cull_region);
+			view->cull_region = NULL;
 
-      pixman_region32_translate (damage, -subcompositor->min_x,
-				 -subcompositor->min_y);
-      key = RenderFinishRender (subcompositor->target, &copy,
-				RenderCompletedCallback, subcompositor);
-      pixman_region32_fini (&copy);
+			/* Subsequent views should be composited.  */
+			op = OperationOver;
+		}
 
-      subcompositor->render_key = key;
-    }
-  else
-    {
-      if (subcompositor->render_key)
-	RenderCancelCompletionCallback (subcompositor->render_key);
-      subcompositor->render_key = NULL;
+		SkipSlug(list, view, next);
 
-      /* We must spare the presentation key if presentation
-	 happened.  */
-      if (!presented && subcompositor->present_key)
-	{
-	  RenderCancelPresentationCallback (subcompositor->present_key);
-	  subcompositor->present_key = NULL;
+	next:
+		list = list->next;
 	}
 
-      /* This goes down the XCopyArea code path, unless presentation
-	 happened, in which case it does nothing.  No key must be
-	 returned, as the given callback is NULL.  */
-      pixman_region32_translate (damage, -subcompositor->min_x,
-				 -subcompositor->min_y);
-      RenderFinishRender (subcompositor->target, &copy, NULL, NULL);
-      pixman_region32_fini (&copy);
-    }
+	/* Finally, update the last view.  */
+	if (view && view->cull_region) {
+		/* Compute the transform.  */
+		ViewComputeTransform(view, &transform, True);
 
-  if (success)
-    /* Proceeed to clear the damage region of each view.  */
-    ClearDamage (subcompositor);
+		/* This is the topmost view.  If there are no preceeding
+		   views, present it.  */
+		if (op != OperationSource ||
+		    !TryPresent(view, view->cull_region, &transform)) {
+			if (bail_on_draw)
+				/* CompositeSingleView will be called, bail! */
+				success = False;
+			else
+				/* Copy or composite the view contents.  */
+				CompositeSingleView(view, view->cull_region, op,
+				    &transform);
+		} else
+			/* Set this flag to true so the code below doesn't
+			   scribble over the presentation callback.  */
+			presented = True;
 
-  return success;
+		/* And free the cull region.  */
+		FreeRegion(view->cull_region);
+		view->cull_region = NULL;
+	}
+
+	/* If a note_frame callback is attached, then this function can pass
+	   a RenderCompletedCallback to the picture renderer and have it
+	   present the back buffer to the window.  If not, however, it must
+	   use XCopyArea so that the buffer swap is done in order wrt to
+	   other requests.  */
+
+	if (subcompositor->note_frame && !presented) {
+		/* This goes down the XPresentPixmap code path.  N.B. that no
+		   buffer swap must happen if presentation happened.  */
+		if (subcompositor->render_key)
+			RenderCancelCompletionCallback(
+			    subcompositor->render_key);
+		if (subcompositor->present_key)
+			RenderCancelPresentationCallback(
+			    subcompositor->present_key);
+		subcompositor->present_key = NULL;
+
+		pixman_region32_translate(damage, -subcompositor->min_x,
+		    -subcompositor->min_y);
+		key = RenderFinishRender(subcompositor->target, &copy,
+		    RenderCompletedCallback, subcompositor);
+		pixman_region32_fini(&copy);
+
+		subcompositor->render_key = key;
+	} else {
+		if (subcompositor->render_key)
+			RenderCancelCompletionCallback(
+			    subcompositor->render_key);
+		subcompositor->render_key = NULL;
+
+		/* We must spare the presentation key if presentation
+		   happened.  */
+		if (!presented && subcompositor->present_key) {
+			RenderCancelPresentationCallback(
+			    subcompositor->present_key);
+			subcompositor->present_key = NULL;
+		}
+
+		/* This goes down the XCopyArea code path, unless presentation
+		   happened, in which case it does nothing.  No key must be
+		   returned, as the given callback is NULL.  */
+		pixman_region32_translate(damage, -subcompositor->min_x,
+		    -subcompositor->min_y);
+		RenderFinishRender(subcompositor->target, &copy, NULL, NULL);
+		pixman_region32_fini(&copy);
+	}
+
+	if (success)
+		/* Proceeed to clear the damage region of each view.  */
+		ClearDamage(subcompositor);
+
+	return success;
 }
 
 static Bool
-SubcompositorComposite (Subcompositor *subcompositor)
+SubcompositorComposite(Subcompositor *subcompositor)
 {
-  pixman_region32_t damage, temp;
-  List *list;
-  View *view;
-  int age;
-  Bool rc;
+	pixman_region32_t damage, temp;
+	List		 *list;
+	View		 *view;
+	int		  age;
+	Bool		  rc;
 
-  age = RenderTargetAge (subcompositor->target);
+	age = RenderTargetAge(subcompositor->target);
 
-  /* First, calculate a global damage region.  */
+	/* First, calculate a global damage region.  */
 
-  pixman_region32_init (&damage);
-  pixman_region32_init (&temp);
-  list = subcompositor->inferiors->next;
+	pixman_region32_init(&damage);
+	pixman_region32_init(&temp);
+	list = subcompositor->inferiors->next;
 
-  while (list != subcompositor->inferiors)
-    {
-      SkipSlug (list, view, next);
+	while (list != subcompositor->inferiors) {
+		SkipSlug(list, view, next);
 
-      /* Subtract the view's opaque region from the output damage
-	 region.  */
+		/* Subtract the view's opaque region from the output damage
+		   region.  */
 
-      if (pixman_region32_not_empty (&view->opaque))
-	{
-	  /* Avoid reporting damage that will be covered up by views
-	     above.  */
-	  pixman_region32_intersect_rect (&temp, &view->opaque,
-					  0, 0, view->width,
-					  view->height);
-	  pixman_region32_translate (&temp, view->abs_x, view->abs_y);
-	  pixman_region32_subtract (&damage, &damage, &temp);
+		if (pixman_region32_not_empty(&view->opaque)) {
+			/* Avoid reporting damage that will be covered up by
+			   views above.  */
+			pixman_region32_intersect_rect(&temp, &view->opaque, 0,
+			    0, view->width, view->height);
+			pixman_region32_translate(&temp, view->abs_x,
+			    view->abs_y);
+			pixman_region32_subtract(&damage, &damage, &temp);
+		}
+
+		/* Add the view's damage region to the output damage region.  */
+		pixman_region32_intersect_rect(&temp, &view->damage, 0, 0,
+		    view->width, view->height);
+		pixman_region32_translate(&temp, view->abs_x, view->abs_y);
+		pixman_region32_union(&damage, &damage, &temp);
+
+	next:
+		list = list->next;
 	}
 
-      /* Add the view's damage region to the output damage region.  */
-      pixman_region32_intersect_rect (&temp, &view->damage, 0, 0,
-				      view->width, view->height);
-      pixman_region32_translate (&temp, view->abs_x, view->abs_y);
-      pixman_region32_union (&damage, &damage, &temp);
+	/* Add damage caused by i.e. movement.  */
+	pixman_region32_union(&damage, &damage,
+	    &subcompositor->additional_damage);
 
-    next:
-      list = list->next;
-    }
+	/* If there is no damage, just return without drawing anything.  */
+	if (!pixman_region32_not_empty(&damage)) {
+		pixman_region32_fini(&damage);
+		pixman_region32_fini(&temp);
+		return True;
+	}
 
-  /* Add damage caused by i.e. movement.  */
-  pixman_region32_union (&damage, &damage,
-			 &subcompositor->additional_damage);
+	if (age == -1 || age > 2) {
+		/* The target is too old.  */
+		pixman_region32_fini(&damage);
+		pixman_region32_fini(&temp);
+		return False;
+	}
 
-  /* If there is no damage, just return without drawing anything.  */
-  if (!pixman_region32_not_empty (&damage))
-    {
-      pixman_region32_fini (&damage);
-      pixman_region32_fini (&temp);
-      return True;
-    }
+	if ((age > 0 && !subcompositor->last_damage) ||
+	    (age > 1 && !subcompositor->before_damage)) {
+		/* Damage required for incremental update is missing.  */
+		pixman_region32_fini(&damage);
+		pixman_region32_fini(&temp);
+		return False;
+	}
 
-  if (age == -1 || age > 2)
-    {
-      /* The target is too old.  */
-      pixman_region32_fini (&damage);
-      pixman_region32_fini (&temp);
-      return False;
-    }
+	/* Copy the damage so StorePreviousDamage gets the damage before it
+	   was unioned.  */
+	pixman_region32_copy(&temp, &damage);
 
-  if ((age > 0 && !subcompositor->last_damage)
-      || (age > 1 && !subcompositor->before_damage))
-    {
-      /* Damage required for incremental update is missing.  */
-      pixman_region32_fini (&damage);
-      pixman_region32_fini (&temp);
-      return False;
-    }
+	/* Now, damage contains the current damage of each view.  Add any
+	   previous damage if required.  */
 
-  /* Copy the damage so StorePreviousDamage gets the damage before it
-     was unioned.  */
-  pixman_region32_copy (&temp, &damage);
+	if (age > 0)
+		pixman_region32_union(&damage, &damage,
+		    subcompositor->last_damage);
 
-  /* Now, damage contains the current damage of each view.  Add any
-     previous damage if required.  */
+	if (age > 1)
+		pixman_region32_union(&damage, &damage,
+		    subcompositor->before_damage);
 
-  if (age > 0)
-    pixman_region32_union (&damage, &damage,
-			   subcompositor->last_damage);
-
-  if (age > 1)
-    pixman_region32_union (&damage, &damage,
-			   subcompositor->before_damage);
-
-  /* If the damage is too complicated, simplify it.  */
-  if (IsDamageComplicated (&damage))
-    SimplifyDamage (&damage,
-		    subcompositor->min_x,
-		    subcompositor->min_y,
-		    subcompositor->max_x,
+	/* If the damage is too complicated, simplify it.  */
+	if (IsDamageComplicated(&damage))
+		SimplifyDamage(&damage, subcompositor->min_x,
+		    subcompositor->min_y, subcompositor->max_x,
 		    subcompositor->max_y);
 
-  /* Add this damage onto the damage ring.  */
-  StorePreviousDamage (subcompositor, &temp);
-  pixman_region32_fini (&temp);
+	/* Add this damage onto the damage ring.  */
+	StorePreviousDamage(subcompositor, &temp);
+	pixman_region32_fini(&temp);
 
-  /* Finally, paint.  If age is -2, then we must bail if the
-     background could be drawn or the view is not presentable.  */
-  rc = SubcompositorComposite1 (subcompositor, &damage, age == -2);
+	/* Finally, paint.  If age is -2, then we must bail if the
+	   background could be drawn or the view is not presentable.  */
+	rc = SubcompositorComposite1(subcompositor, &damage, age == -2);
 
-  pixman_region32_fini (&damage);
+	pixman_region32_fini(&damage);
 
-  if (rc)
-    /* Clear any additional damage applied.  */
-    pixman_region32_clear (&subcompositor->additional_damage);
+	if (rc)
+		/* Clear any additional damage applied.  */
+		pixman_region32_clear(&subcompositor->additional_damage);
 
-  return rc;
+	return rc;
 }
 
 static void
-SubcompositorRedraw (Subcompositor *subcompositor)
+SubcompositorRedraw(Subcompositor *subcompositor)
 {
-  pixman_region32_t damage;
+	pixman_region32_t damage;
 
-  /* Damage the entire subcompositor and render it.  */
-  pixman_region32_init_rect (&damage, subcompositor->min_x,
-			     subcompositor->min_y,
-			     SubcompositorWidth (subcompositor),
-			     SubcompositorHeight (subcompositor));
-  SubcompositorComposite1 (subcompositor, &damage, False);
-  pixman_region32_fini (&damage);
+	/* Damage the entire subcompositor and render it.  */
+	pixman_region32_init_rect(&damage, subcompositor->min_x,
+	    subcompositor->min_y, SubcompositorWidth(subcompositor),
+	    SubcompositorHeight(subcompositor));
+	SubcompositorComposite1(subcompositor, &damage, False);
+	pixman_region32_fini(&damage);
 
-  /* Clear any additional damage applied.  */
-  pixman_region32_clear (&subcompositor->additional_damage);
+	/* Clear any additional damage applied.  */
+	pixman_region32_clear(&subcompositor->additional_damage);
 }
 
 static void
-BeginFrame (Subcompositor *subcompositor)
+BeginFrame(Subcompositor *subcompositor)
 {
-  if (!subcompositor->note_frame)
-    {
-      /* Cancel any presentation callback that is currently in
-	 progress.  */
-      if (subcompositor->present_key)
-	RenderCancelPresentationCallback (subcompositor->present_key);
-      subcompositor->present_key = NULL;
+	if (!subcompositor->note_frame) {
+		/* Cancel any presentation callback that is currently in
+		   progress.  */
+		if (subcompositor->present_key)
+			RenderCancelPresentationCallback(
+			    subcompositor->present_key);
+		subcompositor->present_key = NULL;
 
-      /* Cancel any render callback that is currently in progress.  */
-      if (subcompositor->render_key)
-	RenderCancelCompletionCallback (subcompositor->render_key);
-      subcompositor->render_key = NULL;
+		/* Cancel any render callback that is currently in progress.  */
+		if (subcompositor->render_key)
+			RenderCancelCompletionCallback(
+			    subcompositor->render_key);
+		subcompositor->render_key = NULL;
 
-      return;
-    }
+		return;
+	}
 
-  subcompositor->note_frame (ModeStarted,
-			     ++subcompositor->frame_counter,
-			     subcompositor->note_frame_data,
-			     -1, -1);
+	subcompositor->note_frame(ModeStarted, ++subcompositor->frame_counter,
+	    subcompositor->note_frame_data, -1, -1);
 }
 
 static void
-EndFrame (Subcompositor *subcompositor)
+EndFrame(Subcompositor *subcompositor)
 {
-  if (!subcompositor->note_frame)
-    return;
+	if (!subcompositor->note_frame)
+		return;
 
-  /* Make sure that we wait for the presentation callback or render
-     callback if they are attached.  If not, ask for a
-     notification.  */
+	/* Make sure that we wait for the presentation callback or render
+	   callback if they are attached.  If not, ask for a
+	   notification.  */
 
-  if (!subcompositor->present_key && !subcompositor->render_key)
-    {
-      subcompositor->render_key
-	= RenderNotifyMsc (subcompositor->target,
-			   RenderCompletedCallback,
-			   subcompositor);
+	if (!subcompositor->present_key && !subcompositor->render_key) {
+		subcompositor->render_key =
+		    RenderNotifyMsc(subcompositor->target,
+			RenderCompletedCallback, subcompositor);
 
-      if (!subcompositor->render_key)
-	subcompositor->note_frame (ModeComplete,
-				   subcompositor->frame_counter,
-				   subcompositor->note_frame_data,
-				   -1, -1);
-    }
+		if (!subcompositor->render_key)
+			subcompositor->note_frame(ModeComplete,
+			    subcompositor->frame_counter,
+			    subcompositor->note_frame_data, -1, -1);
+	}
 }
 
 void
-SubcompositorUpdate (Subcompositor *subcompositor)
+SubcompositorUpdate(Subcompositor *subcompositor)
 {
-  Bool could_composite;
+	Bool could_composite;
 
-  if (!IsTargetAttached (subcompositor))
-    return;
+	if (!IsTargetAttached(subcompositor))
+		return;
 
-  if (subcompositor->note_bounds)
-    subcompositor->note_bounds (subcompositor->note_bounds_data,
-				subcompositor->min_x,
-				subcompositor->min_y,
-				subcompositor->max_x,
-				subcompositor->max_y);
+	if (subcompositor->note_bounds)
+		subcompositor->note_bounds(subcompositor->note_bounds_data,
+		    subcompositor->min_x, subcompositor->min_y,
+		    subcompositor->max_x, subcompositor->max_y);
 
-  /* If max_x and max_y changed, garbage the subcompositor.  */
+	/* If max_x and max_y changed, garbage the subcompositor.  */
 
-  if (subcompositor->last_update_max_x != subcompositor->max_x
-      || subcompositor->last_update_max_y != subcompositor->max_y)
-    SetGarbaged (subcompositor);
+	if (subcompositor->last_update_max_x != subcompositor->max_x ||
+	    subcompositor->last_update_max_y != subcompositor->max_y)
+		SetGarbaged(subcompositor);
 
-  /* Record the values for future reference.  */
+	/* Record the values for future reference.  */
 
-  subcompositor->last_update_max_x = subcompositor->max_x;
-  subcompositor->last_update_max_y = subcompositor->max_y;
+	subcompositor->last_update_max_x = subcompositor->max_x;
+	subcompositor->last_update_max_y = subcompositor->max_y;
 
-  RenderNoteTargetSize (subcompositor->target,
-			SubcompositorWidth (subcompositor),
-			SubcompositorHeight (subcompositor));
+	RenderNoteTargetSize(subcompositor->target,
+	    SubcompositorWidth(subcompositor),
+	    SubcompositorHeight(subcompositor));
 
-  if (IsGarbaged (subcompositor))
-    {
-      BeginFrame (subcompositor);
+	if (IsGarbaged(subcompositor)) {
+		BeginFrame(subcompositor);
 
-      /* Update ancillary regions.  */
-      SubcompositorUpdateAncillary (subcompositor);
+		/* Update ancillary regions.  */
+		SubcompositorUpdateAncillary(subcompositor);
 
-      /* The subcompositor is garbaged.  Simply draw everything.  */
-      SubcompositorRedraw (subcompositor);
+		/* The subcompositor is garbaged.  Simply draw everything.  */
+		SubcompositorRedraw(subcompositor);
 
-      EndFrame (subcompositor);
+		EndFrame(subcompositor);
 
-      /* Clear the garbaged flag, unless for debugging purposes the
-	 subcompositor is always garbaged.  */
+		/* Clear the garbaged flag, unless for debugging purposes the
+		   subcompositor is always garbaged.  */
 
-      if (!IsAlwaysGarbaged (subcompositor))
-	subcompositor->state &= ~SubcompositorIsGarbaged;
+		if (!IsAlwaysGarbaged(subcompositor))
+			subcompositor->state &= ~SubcompositorIsGarbaged;
 
-      return;
-    }
+		return;
+	}
 
-  /* Perform an update.  If ancillary regions are dirty, update
-     them.  */
+	/* Perform an update.  If ancillary regions are dirty, update
+	   them.  */
 
-  BeginFrame (subcompositor);
+	BeginFrame(subcompositor);
 
-  /* Now try to composite.  */
-  could_composite = SubcompositorComposite (subcompositor);
+	/* Now try to composite.  */
+	could_composite = SubcompositorComposite(subcompositor);
 
-  if (!could_composite)
-    SubcompositorRedraw (subcompositor);
+	if (!could_composite)
+		SubcompositorRedraw(subcompositor);
 
-  if (IsInputDirty (subcompositor) || IsOpaqueDirty (subcompositor))
-    SubcompositorUpdateAncillary (subcompositor);
+	if (IsInputDirty(subcompositor) || IsOpaqueDirty(subcompositor))
+		SubcompositorUpdateAncillary(subcompositor);
 
-  EndFrame (subcompositor);
+	EndFrame(subcompositor);
 }
 
 void
-SubcompositorExpose (Subcompositor *subcompositor, XEvent *event)
+SubcompositorExpose(Subcompositor *subcompositor, XEvent *event)
 {
-  pixman_region32_t damage;
+	pixman_region32_t damage;
 
-  if (event->type == Expose)
-    pixman_region32_init_rect (&damage, event->xexpose.x,
-			       event->xexpose.y,
-			       event->xexpose.width,
-			       event->xexpose.height);
-  else
-    pixman_region32_init_rect (&damage, event->xgraphicsexpose.x,
-			       event->xgraphicsexpose.y,
-			       event->xgraphicsexpose.width,
-			       event->xgraphicsexpose.height);
-  SubcompositorComposite1 (subcompositor, &damage, False);
-  pixman_region32_fini (&damage);
+	if (event->type == Expose)
+		pixman_region32_init_rect(&damage, event->xexpose.x,
+		    event->xexpose.y, event->xexpose.width,
+		    event->xexpose.height);
+	else
+		pixman_region32_init_rect(&damage, event->xgraphicsexpose.x,
+		    event->xgraphicsexpose.y, event->xgraphicsexpose.width,
+		    event->xgraphicsexpose.height);
+	SubcompositorComposite1(subcompositor, &damage, False);
+	pixman_region32_fini(&damage);
 }
 
 void
-SubcompositorGarbage (Subcompositor *subcompositor)
+SubcompositorGarbage(Subcompositor *subcompositor)
 {
-  SetGarbaged (subcompositor);
+	SetGarbaged(subcompositor);
 }
 
 void
-SubcompositorSetProjectiveTransform (Subcompositor *subcompositor,
-				     int tx, int ty)
+SubcompositorSetProjectiveTransform(Subcompositor *subcompositor, int tx,
+    int ty)
 {
-  subcompositor->tx = tx;
-  subcompositor->ty = ty;
+	subcompositor->tx = tx;
+	subcompositor->ty = ty;
 }
 
 void
-SubcompositorFree (Subcompositor *subcompositor)
+SubcompositorFree(Subcompositor *subcompositor)
 {
-  SubcompositorDestroyCallback *next, *last;
+	SubcompositorDestroyCallback *next, *last;
 
-  /* It isn't valid to call this function with children attached.  */
-  XLAssert (subcompositor->children->next
-	    == subcompositor->children);
-  XLAssert (subcompositor->inferiors->next
-	    == subcompositor->inferiors);
+	/* It isn't valid to call this function with children attached.  */
+	XLAssert(subcompositor->children->next == subcompositor->children);
+	XLAssert(subcompositor->inferiors->next == subcompositor->inferiors);
 
-  XLFree (subcompositor->children);
-  XLFree (subcompositor->inferiors);
+	XLFree(subcompositor->children);
+	XLFree(subcompositor->inferiors);
 
-  /* Run each destroy callback.  */
+	/* Run each destroy callback.  */
 
-  next = subcompositor->destroy_callbacks.next;
-  while (next != &subcompositor->destroy_callbacks)
-    {
-      last = next;
-      next = next->next;
+	next = subcompositor->destroy_callbacks.next;
+	while (next != &subcompositor->destroy_callbacks) {
+		last = next;
+		next = next->next;
 
-      /* Call the function and free the callback.  */
-      last->destroy_func (last->data);
-      XLFree (last);
-    }
+		/* Call the function and free the callback.  */
+		last->destroy_func(last->data);
+		XLFree(last);
+	}
 
-  /* Finalize the buffers used to store previous damage.  */
-  pixman_region32_fini (&subcompositor->prior_damage[0]);
-  pixman_region32_fini (&subcompositor->prior_damage[1]);
+	/* Finalize the buffers used to store previous damage.  */
+	pixman_region32_fini(&subcompositor->prior_damage[0]);
+	pixman_region32_fini(&subcompositor->prior_damage[1]);
 
-  /* Finalize the region used to store additional damage.  */
-  pixman_region32_fini (&subcompositor->additional_damage);
+	/* Finalize the region used to store additional damage.  */
+	pixman_region32_fini(&subcompositor->additional_damage);
 
-  /* Remove the presentation key.  */
-  if (subcompositor->present_key)
-    RenderCancelPresentationCallback (subcompositor->present_key);
+	/* Remove the presentation key.  */
+	if (subcompositor->present_key)
+		RenderCancelPresentationCallback(subcompositor->present_key);
 
-  /* And the render completion key.  */
-  if (subcompositor->render_key)
-    RenderCancelCompletionCallback (subcompositor->render_key);
+	/* And the render completion key.  */
+	if (subcompositor->render_key)
+		RenderCancelCompletionCallback(subcompositor->render_key);
 
-  XLFree (subcompositor);
+	XLFree(subcompositor);
 }
 
 View *
-SubcompositorLookupView (Subcompositor *subcompositor, int x, int y,
-			 int *view_x, int *view_y)
+SubcompositorLookupView(Subcompositor *subcompositor, int x, int y, int *view_x,
+    int *view_y)
 {
-  List *list;
-  int temp_x, temp_y;
-  pixman_box32_t box;
+	List	      *list;
+	int	       temp_x, temp_y;
+	pixman_box32_t box;
 
-  x += subcompositor->min_x;
-  y += subcompositor->min_y;
+	x += subcompositor->min_x;
+	y += subcompositor->min_y;
 
-  for (list = subcompositor->inferiors->last;
-       list != subcompositor->inferiors;
-       list = list->last)
-    {
-      if (!list->view)
-	continue;
+	for (list = subcompositor->inferiors->last;
+	    list != subcompositor->inferiors; list = list->last) {
+		if (!list->view)
+			continue;
 
-      if (IsViewUnmapped (list->view))
-	{
-	  list = list->view->inferior;
-	  continue;
+		if (IsViewUnmapped(list->view)) {
+			list = list->view->inferior;
+			continue;
+		}
+
+		if (!list->view->buffer)
+			continue;
+
+		temp_x = x - list->view->abs_x;
+		temp_y = y - list->view->abs_y;
+
+		/* If the coordinates don't fit in the view bounds, skip the
+		   view.  This test is the equivalent to intersecting the view's
+		   input region with the bounds of the view.  */
+		if (temp_x < 0 || temp_y < 0 || temp_x >= list->view->width ||
+		    temp_y >= list->view->height)
+			continue;
+
+		/* Now see if the input region contains the given
+		   coordinates.  If it does, return the view.  */
+		if (pixman_region32_contains_point(&list->view->input, temp_x,
+			temp_y, &box)) {
+			*view_x = list->view->abs_x - subcompositor->min_x;
+			*view_y = list->view->abs_y - subcompositor->min_y;
+
+			return list->view;
+		}
 	}
 
-      if (!list->view->buffer)
-	continue;
-
-      temp_x = x - list->view->abs_x;
-      temp_y = y - list->view->abs_y;
-
-      /* If the coordinates don't fit in the view bounds, skip the
-	 view.  This test is the equivalent to intersecting the view's
-	 input region with the bounds of the view.  */
-      if (temp_x < 0 || temp_y < 0
-	  || temp_x >= list->view->width
-	  || temp_y >= list->view->height)
-	continue;
-
-      /* Now see if the input region contains the given
-	 coordinates.  If it does, return the view.  */
-      if (pixman_region32_contains_point (&list->view->input, temp_x,
-					  temp_y, &box))
-	{
-	  *view_x = list->view->abs_x - subcompositor->min_x;
-	  *view_y = list->view->abs_y - subcompositor->min_y;
-
-	  return list->view;
-	}
-    }
-
-  return NULL;
+	return NULL;
 }
 
 void *
-ViewGetData (View *view)
+ViewGetData(View *view)
 {
-  return view->data;
+	return view->data;
 }
 
 void
-ViewSetData (View *view, void *data)
+ViewSetData(View *view, void *data)
 {
-  view->data = data;
+	view->data = data;
 }
 
 void
-ViewSetMaybeResizedFunction (View *view, void (*func) (View *))
+ViewSetMaybeResizedFunction(View *view, void (*func)(View *))
 {
-  view->maybe_resized = func;
+	view->maybe_resized = func;
 }
 
 void
-ViewTranslate (View *view, int x, int y, int *x_out, int *y_out)
+ViewTranslate(View *view, int x, int y, int *x_out, int *y_out)
 {
-  if (view->subcompositor)
-    {
-      /* X and Y are assumed to be in the "virtual" coordinate
-	 space.  */
-      x += view->subcompositor->min_x;
-      y += view->subcompositor->min_y;
-    }
+	if (view->subcompositor) {
+		/* X and Y are assumed to be in the "virtual" coordinate
+		   space.  */
+		x += view->subcompositor->min_x;
+		y += view->subcompositor->min_y;
+	}
 
-  *x_out = x - view->abs_x;
-  *y_out = y - view->abs_y;
+	*x_out = x - view->abs_x;
+	*y_out = y - view->abs_y;
 }
 
 View *
-ViewGetParent (View *view)
+ViewGetParent(View *view)
 {
-  return view->parent;
+	return view->parent;
 }
 
 void
-SubcompositorInit (void)
+SubcompositorInit(void)
 {
-  /* Nothing to do here... */
+	/* Nothing to do here... */
 }
 
 int
-SubcompositorWidth (Subcompositor *subcompositor)
+SubcompositorWidth(Subcompositor *subcompositor)
 {
-  return subcompositor->max_x - subcompositor->min_x + 1;
+	return subcompositor->max_x - subcompositor->min_x + 1;
 }
 
 int
-SubcompositorHeight (Subcompositor *subcompositor)
+SubcompositorHeight(Subcompositor *subcompositor)
 {
-  return subcompositor->max_y - subcompositor->min_y + 1;
+	return subcompositor->max_y - subcompositor->min_y + 1;
 }
 
 SubcompositorDestroyCallback *
-SubcompositorOnDestroy (Subcompositor *subcompositor,
-			void (*destroy_func) (void *), void *data)
+SubcompositorOnDestroy(Subcompositor *subcompositor,
+    void (*destroy_func)(void *), void *data)
 {
-  SubcompositorDestroyCallback *callback;
+	SubcompositorDestroyCallback *callback;
 
-  callback = XLCalloc (1, sizeof *callback);
+	callback = XLCalloc(1, sizeof *callback);
 
-  /* Link the callback onto the subcompositor.  */
-  callback->next = subcompositor->destroy_callbacks.next;
-  callback->last = &subcompositor->destroy_callbacks;
-  subcompositor->destroy_callbacks.next->last = callback;
-  subcompositor->destroy_callbacks.next = callback;
+	/* Link the callback onto the subcompositor.  */
+	callback->next = subcompositor->destroy_callbacks.next;
+	callback->last = &subcompositor->destroy_callbacks;
+	subcompositor->destroy_callbacks.next->last = callback;
+	subcompositor->destroy_callbacks.next	    = callback;
 
-  /* Add the func and data.  */
-  callback->destroy_func = destroy_func;
-  callback->data = data;
+	/* Add the func and data.  */
+	callback->destroy_func = destroy_func;
+	callback->data	       = data;
 
-  return callback;
+	return callback;
 }
 
 void
-SubcompositorRemoveDestroyCallback (SubcompositorDestroyCallback *callback)
+SubcompositorRemoveDestroyCallback(SubcompositorDestroyCallback *callback)
 {
-  callback->last->next = callback->next;
-  callback->next->last = callback->last;
+	callback->last->next = callback->next;
+	callback->next->last = callback->last;
 
-  XLFree (callback);
+	XLFree(callback);
 }
 
 void
-SubcompositorSetAlwaysGarbaged (Subcompositor *subcompositor)
+SubcompositorSetAlwaysGarbaged(Subcompositor *subcompositor)
 {
-  SetGarbaged (subcompositor);
-  SetAlwaysGarbaged (subcompositor);
+	SetGarbaged(subcompositor);
+	SetAlwaysGarbaged(subcompositor);
 }

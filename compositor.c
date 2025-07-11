@@ -23,51 +23,44 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 static struct wl_global *global_compositor;
 
 static void
-CreateSurface (struct wl_client *client,
-	       struct wl_resource *resource,
-	       uint32_t id)
+CreateSurface(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id)
 {
-  XLCreateSurface (client, resource, id);
+	XLCreateSurface(client, resource, id);
 }
 
 static void
-CreateRegion (struct wl_client *client,
-	      struct wl_resource *resource,
-	      uint32_t id)
+CreateRegion(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id)
 {
-  XLCreateRegion (client, resource, id);
+	XLCreateRegion(client, resource, id);
 }
 
-static const struct wl_compositor_interface wl_compositor_impl =
-  {
-    .create_surface = CreateSurface,
-    .create_region = CreateRegion,
-  };
+static const struct wl_compositor_interface wl_compositor_impl = {
+	.create_surface = CreateSurface,
+	.create_region	= CreateRegion,
+};
 
 static void
-HandleBind (struct wl_client *client, void *data,
-	    uint32_t version, uint32_t id)
+HandleBind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-  struct wl_resource *resource;
+	struct wl_resource *resource;
 
-  resource = wl_resource_create (client, &wl_compositor_interface,
-				 version, id);
+	resource = wl_resource_create(client, &wl_compositor_interface, version,
+	    id);
 
-  if (!resource)
-    {
-      wl_client_post_no_memory (client);
-      return;
-    }
+	if (!resource) {
+		wl_client_post_no_memory(client);
+		return;
+	}
 
-  wl_resource_set_implementation (resource, &wl_compositor_impl,
-				  NULL, NULL);
+	wl_resource_set_implementation(resource, &wl_compositor_impl, NULL,
+	    NULL);
 }
 
 void
-XLInitCompositor (void)
+XLInitCompositor(void)
 {
-  global_compositor
-    = wl_global_create (compositor.wl_display,
-			&wl_compositor_interface,
-			5, NULL, HandleBind);
+	global_compositor = wl_global_create(compositor.wl_display,
+	    &wl_compositor_interface, 5, NULL, HandleBind);
 }

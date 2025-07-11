@@ -24,110 +24,96 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 static struct wl_global *relative_pointer_manager_global;
 
 static void
-DestroyRelativePointer (struct wl_client *client,
-			struct wl_resource *resource)
+DestroyRelativePointer(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
-static struct zwp_relative_pointer_v1_interface relative_pointer_impl =
-  {
-    .destroy = DestroyRelativePointer,
-  };
+static struct zwp_relative_pointer_v1_interface relative_pointer_impl = {
+	.destroy = DestroyRelativePointer,
+};
 
 static void
-HandleRelativePointerResourceDestroy (struct wl_resource *resource)
+HandleRelativePointerResourceDestroy(struct wl_resource *resource)
 {
-  RelativePointer *relative_pointer;
+	RelativePointer *relative_pointer;
 
-  relative_pointer = wl_resource_get_user_data (resource);
-  XLSeatDestroyRelativePointer (relative_pointer);
-}
-
-
-
-static void
-Destroy (struct wl_client *client, struct wl_resource *resource)
-{
-  wl_resource_destroy (resource);
+	relative_pointer = wl_resource_get_user_data(resource);
+	XLSeatDestroyRelativePointer(relative_pointer);
 }
 
 static void
-GetRelativePointer (struct wl_client *client, struct wl_resource *resource,
-		    uint32_t id, struct wl_resource *pointer_resource)
+Destroy(struct wl_client *client, struct wl_resource *resource)
 {
-  struct wl_resource *relative_pointer_resource;
-  Pointer *pointer;
-  RelativePointer *relative_pointer;
-  Seat *seat;
-
-  pointer = wl_resource_get_user_data (pointer_resource);
-  seat = XLPointerGetSeat (pointer);
-  relative_pointer_resource
-    = wl_resource_create (client, &zwp_relative_pointer_v1_interface,
-			  wl_resource_get_version (pointer_resource),
-			  id);
-
-  if (!relative_pointer_resource)
-    {
-      wl_resource_post_no_memory (pointer_resource);
-      return;
-    }
-
-  relative_pointer = XLSeatGetRelativePointer (seat,
-					       relative_pointer_resource);
-  wl_resource_set_implementation (relative_pointer_resource,
-				  &relative_pointer_impl, relative_pointer,
-				  HandleRelativePointerResourceDestroy);
+	wl_resource_destroy(resource);
 }
 
-static const struct zwp_relative_pointer_manager_v1_interface manager_impl =
-  {
-    .destroy = Destroy,
-    .get_relative_pointer = GetRelativePointer,
-  };
+static void
+GetRelativePointer(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id, struct wl_resource *pointer_resource)
+{
+	struct wl_resource *relative_pointer_resource;
+	Pointer		   *pointer;
+	RelativePointer	   *relative_pointer;
+	Seat		   *seat;
+
+	pointer			  = wl_resource_get_user_data(pointer_resource);
+	seat			  = XLPointerGetSeat(pointer);
+	relative_pointer_resource = wl_resource_create(client,
+	    &zwp_relative_pointer_v1_interface,
+	    wl_resource_get_version(pointer_resource), id);
+
+	if (!relative_pointer_resource) {
+		wl_resource_post_no_memory(pointer_resource);
+		return;
+	}
+
+	relative_pointer = XLSeatGetRelativePointer(seat,
+	    relative_pointer_resource);
+	wl_resource_set_implementation(relative_pointer_resource,
+	    &relative_pointer_impl, relative_pointer,
+	    HandleRelativePointerResourceDestroy);
+}
+
+static const struct zwp_relative_pointer_manager_v1_interface manager_impl = {
+	.destroy	      = Destroy,
+	.get_relative_pointer = GetRelativePointer,
+};
 
 static void
-HandleBind (struct wl_client *client, void *data,
-	    uint32_t version, uint32_t id)
+HandleBind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-  struct wl_resource *resource;
+	struct wl_resource *resource;
 
-  resource = wl_resource_create (client,
-				 &zwp_relative_pointer_manager_v1_interface,
-				 version, id);
+	resource = wl_resource_create(client,
+	    &zwp_relative_pointer_manager_v1_interface, version, id);
 
-  if (!resource)
-    {
-      wl_client_post_no_memory (client);
-      return;
-    }
+	if (!resource) {
+		wl_client_post_no_memory(client);
+		return;
+	}
 
-  wl_resource_set_implementation (resource, &manager_impl, NULL, NULL);
+	wl_resource_set_implementation(resource, &manager_impl, NULL, NULL);
 }
 
 void
-XLInitRelativePointer (void)
+XLInitRelativePointer(void)
 {
-  relative_pointer_manager_global
-    = wl_global_create (compositor.wl_display,
-			&zwp_relative_pointer_manager_v1_interface,
-			1, NULL, HandleBind);
+	relative_pointer_manager_global = wl_global_create(
+	    compositor.wl_display, &zwp_relative_pointer_manager_v1_interface,
+	    1, NULL, HandleBind);
 }
 
 void
-XLRelativePointerSendRelativeMotion (struct wl_resource *resource,
-				     uint64_t microsecond_time, double dx,
-				     double dy)
+XLRelativePointerSendRelativeMotion(struct wl_resource *resource,
+    uint64_t microsecond_time, double dx, double dy)
 {
-  uint32_t time_hi, time_lo;
+	uint32_t time_hi, time_lo;
 
-  time_hi = microsecond_time >> 32;
-  time_lo = microsecond_time & 0xffffffff;
+	time_hi = microsecond_time >> 32;
+	time_lo = microsecond_time & 0xffffffff;
 
-  zwp_relative_pointer_v1_send_relative_motion (resource, time_hi, time_lo,
-						wl_fixed_from_double (dx),
-						wl_fixed_from_double (dy),
-						wl_fixed_from_double (dx),
-						wl_fixed_from_double (dy));
+	zwp_relative_pointer_v1_send_relative_motion(resource, time_hi, time_lo,
+	    wl_fixed_from_double(dx), wl_fixed_from_double(dy),
+	    wl_fixed_from_double(dx), wl_fixed_from_double(dy));
 }

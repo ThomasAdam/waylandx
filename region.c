@@ -24,82 +24,74 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "compositor.h"
 
 static void
-DestroyRegion (struct wl_client *client, struct wl_resource *resource)
+DestroyRegion(struct wl_client *client, struct wl_resource *resource)
 {
-  wl_resource_destroy (resource);
+	wl_resource_destroy(resource);
 }
 
 static void
-SubtractRegion (struct wl_client *client, struct wl_resource *resource,
-		int32_t x, int32_t y, int32_t width, int32_t height)
+SubtractRegion(struct wl_client *client, struct wl_resource *resource,
+    int32_t x, int32_t y, int32_t width, int32_t height)
 {
-  pixman_region32_t *region, operand;
+	pixman_region32_t *region, operand;
 
-  region = wl_resource_get_user_data (resource);
-  pixman_region32_init_rect (&operand, x, y, width, height);
-  pixman_region32_subtract (region, region, &operand);
+	region = wl_resource_get_user_data(resource);
+	pixman_region32_init_rect(&operand, x, y, width, height);
+	pixman_region32_subtract(region, region, &operand);
 }
 
 static void
-AddRegion (struct wl_client *client, struct wl_resource *resource,
-	   int32_t x, int32_t y, int32_t width, int32_t height)
+AddRegion(struct wl_client *client, struct wl_resource *resource, int32_t x,
+    int32_t y, int32_t width, int32_t height)
 {
-  pixman_region32_t *region, operand;
+	pixman_region32_t *region, operand;
 
-  region = wl_resource_get_user_data (resource);
-  pixman_region32_init_rect (&operand, x, y, width, height);
-  pixman_region32_union (region, region, &operand);
+	region = wl_resource_get_user_data(resource);
+	pixman_region32_init_rect(&operand, x, y, width, height);
+	pixman_region32_union(region, region, &operand);
 }
 
-static const struct wl_region_interface wl_region_impl =
-  {
-    .destroy = DestroyRegion,
-    .subtract = SubtractRegion,
-    .add = AddRegion
-  };
+static const struct wl_region_interface wl_region_impl = {
+	.destroy  = DestroyRegion,
+	.subtract = SubtractRegion,
+	.add	  = AddRegion
+};
 
 static void
-HandleResourceDestroy (struct wl_resource *resource)
+HandleResourceDestroy(struct wl_resource *resource)
 {
-  pixman_region32_t *region;
+	pixman_region32_t *region;
 
-  region = wl_resource_get_user_data (resource);
-  pixman_region32_fini (region);
-  XLFree (region);
+	region = wl_resource_get_user_data(resource);
+	pixman_region32_fini(region);
+	XLFree(region);
 }
 
 void
-XLCreateRegion (struct wl_client *client,
-		struct wl_resource *resource,
-		uint32_t id)
+XLCreateRegion(struct wl_client *client, struct wl_resource *resource,
+    uint32_t id)
 {
-  pixman_region32_t *region;
-  struct wl_resource *region_resource;
+	pixman_region32_t  *region;
+	struct wl_resource *region_resource;
 
-  region = XLSafeMalloc (sizeof *region);
+	region = XLSafeMalloc(sizeof *region);
 
-  if (!region)
-    {
-      wl_resource_post_no_memory (resource);
-      return;
-    }
+	if (!region) {
+		wl_resource_post_no_memory(resource);
+		return;
+	}
 
-  region_resource
-    = wl_resource_create (client, &wl_region_interface,
-			  wl_resource_get_version (resource),
-			  id);
+	region_resource = wl_resource_create(client, &wl_region_interface,
+	    wl_resource_get_version(resource), id);
 
-  if (!resource)
-    {
-      wl_resource_post_no_memory (resource);
-      XLFree (region);
+	if (!resource) {
+		wl_resource_post_no_memory(resource);
+		XLFree(region);
 
-      return;
-    }
+		return;
+	}
 
-  pixman_region32_init (region);
-  wl_resource_set_implementation (region_resource,
-				  &wl_region_impl,
-				  region,
-				  HandleResourceDestroy);
+	pixman_region32_init(region);
+	wl_resource_set_implementation(region_resource, &wl_region_impl, region,
+	    HandleResourceDestroy);
 }

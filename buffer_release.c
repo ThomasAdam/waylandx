@@ -23,124 +23,119 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 typedef struct _ReleaseLaterRecord ReleaseLaterRecord;
 
-struct _ReleaseLaterRecord
-{
-  /* A monotonically (overflow aside) increasing identifier.  */
-  uint64_t id;
+struct _ReleaseLaterRecord {
+	/* A monotonically (overflow aside) increasing identifier.  */
+	uint64_t id;
 
-  /* The buffer that should be released upon receiving this
-     message.  */
-  ExtBuffer *buffer;
+	/* The buffer that should be released upon receiving this
+	   message.  */
+	ExtBuffer *buffer;
 
-  /* The idle callback, if any.  */
-  IdleCallbackKey key;
+	/* The idle callback, if any.  */
+	IdleCallbackKey key;
 
-  /* The buffer release helper.  */
-  BufferReleaseHelper *helper;
+	/* The buffer release helper.  */
+	BufferReleaseHelper *helper;
 
-  /* The next and last records.  */
-  ReleaseLaterRecord *next, *last;
+	/* The next and last records.  */
+	ReleaseLaterRecord *next, *last;
 };
 
-struct _BufferReleaseHelper
-{
-  /* Queue of buffers pending release.  */
-  ReleaseLaterRecord records;
+struct _BufferReleaseHelper {
+	/* Queue of buffers pending release.  */
+	ReleaseLaterRecord records;
 
-  /* Callback run upon all buffers being released.  */
-  AllReleasedCallback callback;
+	/* Callback run upon all buffers being released.  */
+	AllReleasedCallback callback;
 
-  /* Data for that callback.  */
-  void *callback_data;
+	/* Data for that callback.  */
+	void *callback_data;
 };
 
 BufferReleaseHelper *
-MakeBufferReleaseHelper (AllReleasedCallback callback,
-			 void *callback_data)
+MakeBufferReleaseHelper(AllReleasedCallback callback, void *callback_data)
 {
-  BufferReleaseHelper *helper;
+	BufferReleaseHelper *helper;
 
-  helper = XLCalloc (1, sizeof *helper);
-  helper->records.next = &helper->records;
-  helper->records.last = &helper->records;
-  helper->callback = callback;
-  helper->callback_data = callback_data;
+	helper		      = XLCalloc(1, sizeof *helper);
+	helper->records.next  = &helper->records;
+	helper->records.last  = &helper->records;
+	helper->callback      = callback;
+	helper->callback_data = callback_data;
 
-  return helper;
+	return helper;
 }
 
 void
-FreeBufferReleaseHelper (BufferReleaseHelper *helper)
+FreeBufferReleaseHelper(BufferReleaseHelper *helper)
 {
-  ReleaseLaterRecord *next, *last;
+	ReleaseLaterRecord *next, *last;
 
-  /* Do an XSync, and then release all the records.  */
-  XSync (compositor.display, False);
+	/* Do an XSync, and then release all the records.  */
+	XSync(compositor.display, False);
 
-  next = helper->records.next;
-  while (next != &helper->records)
-    {
-      last = next;
-      next = next->next;
+	next = helper->records.next;
+	while (next != &helper->records) {
+		last = next;
+		next = next->next;
 
-      /* Cancel the idle callback if it already exists.  */
-      if (last->key)
-	RenderCancelIdleCallback (last->key);
+		/* Cancel the idle callback if it already exists.  */
+		if (last->key)
+			RenderCancelIdleCallback(last->key);
 
-      /* Release the buffer now.  */
-      XLReleaseBuffer (last->buffer);
+		/* Release the buffer now.  */
+		XLReleaseBuffer(last->buffer);
 
-      /* Before freeing the record itself.  */
-      XLFree (last);
-    }
+		/* Before freeing the record itself.  */
+		XLFree(last);
+	}
 
-  /* Free the helper.  */
-  XLFree (helper);
+	/* Free the helper.  */
+	XLFree(helper);
 }
 
 static void
-BufferIdleCallback (RenderBuffer buffer, void *data)
+BufferIdleCallback(RenderBuffer buffer, void *data)
 {
-  ReleaseLaterRecord *record;
-  BufferReleaseHelper *helper;
+	ReleaseLaterRecord  *record;
+	BufferReleaseHelper *helper;
 
-  record = data;
-  helper = record->helper;
+	record = data;
+	helper = record->helper;
 
-  /* Release the buffer.  */
-  XLReleaseBuffer (record->buffer);
+	/* Release the buffer.  */
+	XLReleaseBuffer(record->buffer);
 
-  /* Unlink and free the record.  */
-  record->next->last = record->last;
-  record->last->next = record->next;
-  XLFree (record);
+	/* Unlink and free the record.  */
+	record->next->last = record->last;
+	record->last->next = record->next;
+	XLFree(record);
 
-  /* If there are no more records in the helper, run its
-     all-released-callback.  */
-  if (helper->records.next == &helper->records)
-    helper->callback (helper->callback_data);
+	/* If there are no more records in the helper, run its
+	   all-released-callback.  */
+	if (helper->records.next == &helper->records)
+		helper->callback(helper->callback_data);
 }
 
 void
-ReleaseBufferWithHelper (BufferReleaseHelper *helper, ExtBuffer *buffer,
-			 RenderTarget target)
+ReleaseBufferWithHelper(BufferReleaseHelper *helper, ExtBuffer *buffer,
+    RenderTarget target)
 {
-  ReleaseLaterRecord *record;
-  RenderBuffer render_buffer;
+	ReleaseLaterRecord *record;
+	RenderBuffer	    render_buffer;
 
-  render_buffer = XLRenderBufferFromBuffer (buffer);
+	render_buffer = XLRenderBufferFromBuffer(buffer);
 
-  record = XLCalloc (1, sizeof *record);
-  record->next = helper->records.next;
-  record->last = &helper->records;
-  helper->records.next->last = record;
-  helper->records.next = record;
+	record			   = XLCalloc(1, sizeof *record);
+	record->next		   = helper->records.next;
+	record->last		   = &helper->records;
+	helper->records.next->last = record;
+	helper->records.next	   = record;
 
-  /* Now, the record is linked into the list.  Record the buffer and
-     add an idle callback.  */
-  record->buffer = buffer;
-  record->key = RenderAddIdleCallback (render_buffer, target,
-				       BufferIdleCallback,
-				       record);
-  record->helper = helper;
+	/* Now, the record is linked into the list.  Record the buffer and
+	   add an idle callback.  */
+	record->buffer = buffer;
+	record->key    = RenderAddIdleCallback(render_buffer, target,
+	       BufferIdleCallback, record);
+	record->helper = helper;
 }

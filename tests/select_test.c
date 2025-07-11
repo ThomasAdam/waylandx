@@ -24,17 +24,15 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <X11/Xatom.h>
 
-enum test_kind
-  {
-    SELECT_STRING_KIND,
-  };
+enum test_kind {
+	SELECT_STRING_KIND,
+};
 
-static const char *test_names[] =
-  {
-    "select_string",
-  };
+static const char *test_names[] = {
+	"select_string",
+};
 
-#define LAST_TEST	        SELECT_STRING_KIND
+#define LAST_TEST SELECT_STRING_KIND
 
 /* The display.  */
 static struct test_display *display;
@@ -43,11 +41,12 @@ static struct test_display *display;
 static struct wl_data_device_manager *data_device_manager;
 
 /* Test interfaces.  */
-static struct test_interface test_interfaces[] =
-  {
-    { "wl_data_device_manager", &data_device_manager,
-      &wl_data_device_manager_interface, 3, },
-  };
+static struct test_interface test_interfaces[] = {
+	{
+	    "wl_data_device_manager", &data_device_manager,
+	    &wl_data_device_manager_interface,
+	    3, },
+};
 
 /* The data device.  */
 static struct wl_data_device *data_device;
@@ -57,333 +56,310 @@ static bool send_called;
 
 /* Sample text used.  */
 
-#define SAMPLE_TEXT							\
-  ("Lorem ipsum dolor sit amet, consectetur adipiscing elit"		\
-   ", sed do eiusmod tempor incididunt ut labore et dolore"		\
-   " magna aliqua. Ut enim ad minim veniam, quis nostrud"		\
-   " exercitation ullamco laboris nisi ut aliquip ex ea commodo"	\
-   " consequat.  Duis aute irure dolor in reprehenderit in"		\
-   " voluptate velit esse cillum dolore eu fugiat nulla pariatur."	\
-   "  Excepteur sint occaecat cupidatat non proident, sunt in"		\
-   " culpa qui officia deserunt mollit anim id est laborum.")
-
-
+#define SAMPLE_TEXT                                                      \
+	("Lorem ipsum dolor sit amet, consectetur adipiscing elit"       \
+	 ", sed do eiusmod tempor incididunt ut labore et dolore"        \
+	 " magna aliqua. Ut enim ad minim veniam, quis nostrud"          \
+	 " exercitation ullamco laboris nisi ut aliquip ex ea commodo"   \
+	 " consequat.  Duis aute irure dolor in reprehenderit in"        \
+	 " voluptate velit esse cillum dolore eu fugiat nulla pariatur." \
+	 "  Excepteur sint occaecat cupidatat non proident, sunt in"     \
+	 " culpa qui officia deserunt mollit anim id est laborum.")
 
 static Bool
-test_get_time_1 (Display *display, XEvent *event, XPointer arg)
+test_get_time_1(Display *display, XEvent *event, XPointer arg)
 {
-  Atom *atom;
+	Atom *atom;
 
-  atom = (Atom *) arg;
+	atom = (Atom *)arg;
 
-  if (event->type == PropertyNotify
-      && event->xproperty.atom == *atom)
-    return True;
+	if (event->type == PropertyNotify && event->xproperty.atom == *atom)
+		return True;
 
-  return False;
+	return False;
 }
 
 /* Get a timestamp suitable for use in events dispatched to the test
    seat.  */
 
 static Time
-test_get_time (void)
+test_get_time(void)
 {
-  Atom property_atom;
-  XEvent event;
-  Window window;
-  unsigned char unused;
-  XSetWindowAttributes attrs;
+	Atom		     property_atom;
+	XEvent		     event;
+	Window		     window;
+	unsigned char	     unused;
+	XSetWindowAttributes attrs;
 
-  attrs.event_mask = PropertyChangeMask;
-  window = XCreateWindow (display->x_display,
-			  DefaultRootWindow (display->x_display),
-			  0, 0, 1, 1, 0, 0, InputOnly, CopyFromParent,
-			  CWEventMask, &attrs);
-  unused = '\0';
-  property_atom = XInternAtom (display->x_display,
-			       "_INTERNAL_SERVER_TIME_PROP",
-			       False);
-  XChangeProperty (display->x_display, window, property_atom,
-		   XA_CARDINAL, 8, PropModeReplace, &unused, 1);
-  XIfEvent (display->x_display, &event, test_get_time_1,
-	    (XPointer) &property_atom);
-  XDestroyWindow (display->x_display, window);
-  return event.xproperty.time;
+	attrs.event_mask = PropertyChangeMask;
+	window		 = XCreateWindow(display->x_display,
+		      DefaultRootWindow(display->x_display), 0, 0, 1, 1, 0, 0, InputOnly,
+		      CopyFromParent, CWEventMask, &attrs);
+	unused		 = '\0';
+	property_atom	 = XInternAtom(display->x_display,
+	       "_INTERNAL_SERVER_TIME_PROP", False);
+	XChangeProperty(display->x_display, window, property_atom, XA_CARDINAL,
+	    8, PropModeReplace, &unused, 1);
+	XIfEvent(display->x_display, &event, test_get_time_1,
+	    (XPointer)&property_atom);
+	XDestroyWindow(display->x_display, window);
+	return event.xproperty.time;
 }
 
-
-
 static void
-handle_data_source_target (void *data, struct wl_data_source *data_source,
-			   const char *mime_type)
+handle_data_source_target(void *data, struct wl_data_source *data_source,
+    const char *mime_type)
 {
-  /* Nothing to do here.  */
+	/* Nothing to do here.  */
 }
 
 static void *
-handle_data_source_send_1 (void *data)
+handle_data_source_send_1(void *data)
 {
-  int fd;
+	int fd;
 
-  fd = (intptr_t) data;
+	fd = (intptr_t)data;
 
-  write (fd, SAMPLE_TEXT, sizeof SAMPLE_TEXT - 1);
-  close (fd);
+	write(fd, SAMPLE_TEXT, sizeof SAMPLE_TEXT - 1);
+	close(fd);
 
-  return NULL;
+	return NULL;
 }
 
 static void
-handle_data_source_send (void *data, struct wl_data_source *data_source,
-			 const char *mime_type, int fd)
+handle_data_source_send(void *data, struct wl_data_source *data_source,
+    const char *mime_type, int fd)
 {
-  pthread_t thread;
+	pthread_t thread;
 
-  send_called = true;
+	send_called = true;
 
-  if (pthread_create (&thread, NULL, handle_data_source_send_1,
-		      (void *) (intptr_t) fd))
-    die ("pthread_create");
+	if (pthread_create(&thread, NULL, handle_data_source_send_1,
+		(void *)(intptr_t)fd))
+		die("pthread_create");
 }
 
 static void
-handle_data_source_cancelled (void *data, struct wl_data_source *data_source)
+handle_data_source_cancelled(void *data, struct wl_data_source *data_source)
 {
-  report_test_failure ("data source cancelled");
+	report_test_failure("data source cancelled");
 }
 
-static const struct wl_data_source_listener data_source_listener =
-  {
-    handle_data_source_target,
-    handle_data_source_send,
-    handle_data_source_cancelled,
-  };
-
-
+static const struct wl_data_source_listener data_source_listener = {
+	handle_data_source_target,
+	handle_data_source_send,
+	handle_data_source_cancelled,
+};
 
 static void
-own_sample_text (void)
+own_sample_text(void)
 {
-  struct wl_data_source *source;
-  uint32_t display_serial;
+	struct wl_data_source *source;
+	uint32_t	       display_serial;
 
-  source = wl_data_device_manager_create_data_source (data_device_manager);
-  display_serial = test_get_serial (display);
+	source = wl_data_device_manager_create_data_source(data_device_manager);
+	display_serial = test_get_serial(display);
 
-  if (!source)
-    report_test_failure ("failed to create data source");
+	if (!source)
+		report_test_failure("failed to create data source");
 
-  wl_data_source_offer (source, "text/plain");
-  wl_data_source_offer (source, "text/plain;charset=utf-8");
-  wl_data_source_add_listener (source, &data_source_listener, NULL);
-  wl_data_device_set_selection (data_device, source, display_serial);
+	wl_data_source_offer(source, "text/plain");
+	wl_data_source_offer(source, "text/plain;charset=utf-8");
+	wl_data_source_add_listener(source, &data_source_listener, NULL);
+	wl_data_device_set_selection(data_device, source, display_serial);
 }
 
 static void
-verify_sample_text (Time time)
+verify_sample_text(Time time)
 {
-  int pipefds[2], wstatus;
-  pid_t pid;
-  char *display_string;
-  char time_buffer[45], buffer[sizeof SAMPLE_TEXT];
-  ssize_t bytes_read;
-  const char *sample_text_buffer;
+	int	    pipefds[2], wstatus;
+	pid_t	    pid;
+	char	   *display_string;
+	char	    time_buffer[45], buffer[sizeof SAMPLE_TEXT];
+	ssize_t	    bytes_read;
+	const char *sample_text_buffer;
 
-  /* Run select_helper with the specified timestamp.  Wait until
-     handle_data_source_send is called, and then begin reading from
-     the pipe.  */
+	/* Run select_helper with the specified timestamp.  Wait until
+	   handle_data_source_send is called, and then begin reading from
+	   the pipe.  */
 
-  if (pipe (pipefds) < 0)
-    die ("pipe");
+	if (pipe(pipefds) < 0)
+		die("pipe");
 
-  display_string = DisplayString (display->x_display);
-  sprintf (time_buffer, "%lu", time);
-  pid = fork ();
+	display_string = DisplayString(display->x_display);
+	sprintf(time_buffer, "%lu", time);
+	pid = fork();
 
-  if (pid == -1)
-    die ("fork");
-  else if (!pid)
-    {
-      close (pipefds[0]);
+	if (pid == -1)
+		die("fork");
+	else if (!pid) {
+		close(pipefds[0]);
 
-      if (!dup2 (pipefds[1], 1))
-	exit (1);
+		if (!dup2(pipefds[1], 1))
+			exit(1);
 
-      execlp ("./select_helper", "./select_helper",
-	      display_string, time_buffer, "STRING",
-	      NULL);
-      exit (1);
-    }
+		execlp("./select_helper", "./select_helper", display_string,
+		    time_buffer, "STRING", NULL);
+		exit(1);
+	}
 
-  send_called = false;
+	send_called = false;
 
-  while (!send_called)
-    {
-      if (wl_display_dispatch (display->display) == -1)
-        die ("wl_display_dispatch");
-    }
+	while (!send_called) {
+		if (wl_display_dispatch(display->display) == -1)
+			die("wl_display_dispatch");
+	}
 
-  /* Now, start reading from the pipe and comparing the contents.  */
-  sample_text_buffer = SAMPLE_TEXT;
-  bytes_read = read (pipefds[0], buffer, sizeof SAMPLE_TEXT - 1);
+	/* Now, start reading from the pipe and comparing the contents.  */
+	sample_text_buffer = SAMPLE_TEXT;
+	bytes_read	   = read(pipefds[0], buffer, sizeof SAMPLE_TEXT - 1);
 
-  if (bytes_read != sizeof SAMPLE_TEXT - 1)
-    report_test_failure ("wanted %zu bytes, but got %zd",
-			 sizeof SAMPLE_TEXT - 1, bytes_read);
+	if (bytes_read != sizeof SAMPLE_TEXT - 1)
+		report_test_failure("wanted %zu bytes, but got %zd",
+		    sizeof SAMPLE_TEXT - 1, bytes_read);
 
-  waitpid (pid, &wstatus, 0);
+	waitpid(pid, &wstatus, 0);
 
-  if (WEXITSTATUS (wstatus))
-    report_test_failure ("child exited with failure: %d",
-			 WEXITSTATUS (wstatus));
+	if (WEXITSTATUS(wstatus))
+		report_test_failure("child exited with failure: %d",
+		    WEXITSTATUS(wstatus));
 
-  /* Now compare the text.  */
-  if (memcmp (buffer, sample_text_buffer, bytes_read))
-    report_test_failure ("read text differs from sample text!");
+	/* Now compare the text.  */
+	if (memcmp(buffer, sample_text_buffer, bytes_read))
+		report_test_failure("read text differs from sample text!");
 
-  close (pipefds[0]);
-  close (pipefds[1]);
+	close(pipefds[0]);
+	close(pipefds[1]);
 }
 
 static void
-verify_sample_text_multiple (Time time)
+verify_sample_text_multiple(Time time)
 {
-  int pipefds[2], wstatus;
-  pid_t pid;
-  char *display_string;
-  char time_buffer[45], buffer[sizeof SAMPLE_TEXT];
-  ssize_t bytes_read;
-  const char *sample_text_buffer;
+	int	    pipefds[2], wstatus;
+	pid_t	    pid;
+	char	   *display_string;
+	char	    time_buffer[45], buffer[sizeof SAMPLE_TEXT];
+	ssize_t	    bytes_read;
+	const char *sample_text_buffer;
 
-  /* Run select_helper with the specified timestamp.  Wait until
-     handle_data_source_send is called, and then begin reading from
-     the pipe.  */
+	/* Run select_helper with the specified timestamp.  Wait until
+	   handle_data_source_send is called, and then begin reading from
+	   the pipe.  */
 
-  if (pipe (pipefds) < 0)
-    die ("pipe");
+	if (pipe(pipefds) < 0)
+		die("pipe");
 
-  display_string = DisplayString (display->x_display);
-  sprintf (time_buffer, "%lu", time);
-  pid = fork ();
+	display_string = DisplayString(display->x_display);
+	sprintf(time_buffer, "%lu", time);
+	pid = fork();
 
-  if (pid == -1)
-    die ("fork");
-  else if (!pid)
-    {
-      close (pipefds[0]);
+	if (pid == -1)
+		die("fork");
+	else if (!pid) {
+		close(pipefds[0]);
 
-      if (!dup2 (pipefds[1], 1))
-	exit (1);
+		if (!dup2(pipefds[1], 1))
+			exit(1);
 
-      execlp ("./select_helper_multiple", "./select_helper_multiple",
-	      display_string, time_buffer, "STRING", "UTF8_STRING",
-	      NULL);
-      exit (1);
-    }
+		execlp("./select_helper_multiple", "./select_helper_multiple",
+		    display_string, time_buffer, "STRING", "UTF8_STRING", NULL);
+		exit(1);
+	}
 
-  send_called = false;
+	send_called = false;
 
-  while (!send_called)
-    {
-      if (wl_display_dispatch (display->display) == -1)
-        die ("wl_display_dispatch");
-    }
+	while (!send_called) {
+		if (wl_display_dispatch(display->display) == -1)
+			die("wl_display_dispatch");
+	}
 
-  /* Now, start reading from the pipe and comparing the contents.  */
-  sample_text_buffer = SAMPLE_TEXT;
-  bytes_read = read (pipefds[0], buffer, sizeof SAMPLE_TEXT - 1);
+	/* Now, start reading from the pipe and comparing the contents.  */
+	sample_text_buffer = SAMPLE_TEXT;
+	bytes_read	   = read(pipefds[0], buffer, sizeof SAMPLE_TEXT - 1);
 
-  if (bytes_read != sizeof SAMPLE_TEXT - 1)
-    report_test_failure ("wanted %zu bytes, but got %zd",
-			 sizeof SAMPLE_TEXT - 1, bytes_read);
+	if (bytes_read != sizeof SAMPLE_TEXT - 1)
+		report_test_failure("wanted %zu bytes, but got %zd",
+		    sizeof SAMPLE_TEXT - 1, bytes_read);
 
-  /* Now compare the text.  */
-  if (memcmp (buffer, sample_text_buffer, bytes_read))
-    report_test_failure ("read text differs from sample text!");
+	/* Now compare the text.  */
+	if (memcmp(buffer, sample_text_buffer, bytes_read))
+		report_test_failure("read text differs from sample text!");
 
-  /* Compare the text again for the second target.  */
-  bytes_read = read (pipefds[0], buffer, sizeof SAMPLE_TEXT - 1);
+	/* Compare the text again for the second target.  */
+	bytes_read = read(pipefds[0], buffer, sizeof SAMPLE_TEXT - 1);
 
-  if (bytes_read != sizeof SAMPLE_TEXT - 1)
-    report_test_failure ("wanted %zu bytes, but got %zd",
-			 sizeof SAMPLE_TEXT - 1, bytes_read);
+	if (bytes_read != sizeof SAMPLE_TEXT - 1)
+		report_test_failure("wanted %zu bytes, but got %zd",
+		    sizeof SAMPLE_TEXT - 1, bytes_read);
 
-  waitpid (pid, &wstatus, 0);
+	waitpid(pid, &wstatus, 0);
 
-  if (WEXITSTATUS (wstatus))
-    report_test_failure ("child exited with failure: %d",
-			 WEXITSTATUS (wstatus));
+	if (WEXITSTATUS(wstatus))
+		report_test_failure("child exited with failure: %d",
+		    WEXITSTATUS(wstatus));
 
-  close (pipefds[0]);
-  close (pipefds[1]);
+	close(pipefds[0]);
+	close(pipefds[1]);
 }
 
-
-
 static void
-test_single_step (enum test_kind kind)
+test_single_step(enum test_kind kind)
 {
-  Time time;
+	Time time;
 
-  test_log ("running test step: %s", test_names[kind]);
+	test_log("running test step: %s", test_names[kind]);
 
-  switch (kind)
-    {
-    case SELECT_STRING_KIND:
-      /* Set the last user time of the seat to the current X server
-	 time.  */
-      time = test_get_time ();
-      test_seat_controller_set_last_user_time (display->seat->controller,
-					       0, time);
-      own_sample_text ();
+	switch (kind) {
+	case SELECT_STRING_KIND:
+		/* Set the last user time of the seat to the current X server
+		   time.  */
+		time = test_get_time();
+		test_seat_controller_set_last_user_time(
+		    display->seat->controller, 0, time);
+		own_sample_text();
 
-      /* Do a roundtrip.  If selection ownership changes, then the
-	 protocol translator will wait for selection ownership to be
-	 confirmed.  */
-      wl_display_roundtrip (display->display);
+		/* Do a roundtrip.  If selection ownership changes, then the
+		   protocol translator will wait for selection ownership to be
+		   confirmed.  */
+		wl_display_roundtrip(display->display);
 
-      /* Now, verify the selection contents.  */
-      test_log ("verifying sample text normally");
-      verify_sample_text (time);
+		/* Now, verify the selection contents.  */
+		test_log("verifying sample text normally");
+		verify_sample_text(time);
 
-      /* And verify the selection contents for MULTIPLE.  */
-      test_log ("verifying sample text via MULTIPLE");
-      verify_sample_text_multiple (time);
-      break;
-    }
+		/* And verify the selection contents for MULTIPLE.  */
+		test_log("verifying sample text via MULTIPLE");
+		verify_sample_text_multiple(time);
+		break;
+	}
 
-  if (kind == LAST_TEST)
-    test_complete ();
+	if (kind == LAST_TEST)
+		test_complete();
 }
 
-
-
 static void
-run_test (void)
+run_test(void)
 {
-  test_single_step (SELECT_STRING_KIND);
+	test_single_step(SELECT_STRING_KIND);
 
-  while (true)
-    {
-      if (wl_display_dispatch (display->display) == -1)
-        die ("wl_display_dispatch");
-    }
+	while (true) {
+		if (wl_display_dispatch(display->display) == -1)
+			die("wl_display_dispatch");
+	}
 }
 
 int
-main (void)
+main(void)
 {
-  test_init ();
-  display = open_test_display (test_interfaces,
-			       ARRAYELTS (test_interfaces));
+	test_init();
+	display = open_test_display(test_interfaces,
+	    ARRAYELTS(test_interfaces));
 
-  if (!display)
-    report_test_failure ("failed to open display");
+	if (!display)
+		report_test_failure("failed to open display");
 
-  test_init_seat (display);
-  data_device
-    = wl_data_device_manager_get_data_device (data_device_manager,
-					      display->seat->seat);
-  run_test ();
+	test_init_seat(display);
+	data_device = wl_data_device_manager_get_data_device(
+	    data_device_manager, display->seat->seat);
+	run_test();
 }

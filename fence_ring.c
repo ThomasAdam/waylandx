@@ -28,98 +28,95 @@ along with 12to11.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <xcb/dri3.h>
 
-struct _Fence
-{
-  /* The xshmfence.  */
-  struct xshmfence *fence;
+struct _Fence {
+	/* The xshmfence.  */
+	struct xshmfence *fence;
 
-  /* The sync fence.  */
-  XSyncFence fence_id;
+	/* The sync fence.  */
+	XSyncFence fence_id;
 
-  /* The number of references to this fence.  Incremented by
-     FenceRetain, decremented by FenceRelease.  */
-  int refcount;
+	/* The number of references to this fence.  Incremented by
+	   FenceRetain, decremented by FenceRelease.  */
+	int refcount;
 };
 
 Fence *
-GetFence (void)
+GetFence(void)
 {
-  Fence *fence;
-  int fd;
-  Window drawable;
+	Fence *fence;
+	int    fd;
+	Window drawable;
 
-  drawable = DefaultRootWindow (compositor.display);
+	drawable = DefaultRootWindow(compositor.display);
 
-  /* Allocate a new fence.  */
-  fence = XLCalloc (1, sizeof *fence);
-  fd = xshmfence_alloc_shm ();
+	/* Allocate a new fence.  */
+	fence = XLCalloc(1, sizeof *fence);
+	fd    = xshmfence_alloc_shm();
 
-  if (fd < 0)
-    {
-      perror ("xshmfence_alloc_shm");
-      abort ();
-    }
+	if (fd < 0) {
+		perror("xshmfence_alloc_shm");
+		abort();
+	}
 
-  /* Map it.  */
-  fence->fence = xshmfence_map_shm (fd);
+	/* Map it.  */
+	fence->fence = xshmfence_map_shm(fd);
 
-  if (!fence->fence)
-    {
-      perror ("xshmfence_map_shm");
-      abort ();
-    }
+	if (!fence->fence) {
+		perror("xshmfence_map_shm");
+		abort();
+	}
 
-  /* Upload the fence to the X server.  XCB will close the file
-     descriptor.  */
-  fence->fence_id = xcb_generate_id (compositor.conn);
+	/* Upload the fence to the X server.  XCB will close the file
+	   descriptor.  */
+	fence->fence_id = xcb_generate_id(compositor.conn);
 
-  /* Make the file descriptor CLOEXEC, since it isn't closed
-     immediately.  */
-  XLAddFdFlag (fd, FD_CLOEXEC, False);
-  xcb_dri3_fence_from_fd (compositor.conn, drawable,
-			  fence->fence_id, 0, fd);
+	/* Make the file descriptor CLOEXEC, since it isn't closed
+	   immediately.  */
+	XLAddFdFlag(fd, FD_CLOEXEC, False);
+	xcb_dri3_fence_from_fd(compositor.conn, drawable, fence->fence_id, 0,
+	    fd);
 
-  /* Retain the fence.  */
-  FenceRetain (fence);
+	/* Retain the fence.  */
+	FenceRetain(fence);
 
-  /* Return the fence.  */
-  return fence;
+	/* Return the fence.  */
+	return fence;
 }
 
 void
-FenceAwait (Fence *fence)
+FenceAwait(Fence *fence)
 {
-  /* Wait for the fence to be triggered.  */
-  xshmfence_await (fence->fence);
+	/* Wait for the fence to be triggered.  */
+	xshmfence_await(fence->fence);
 
-  /* Reset the fence.  */
-  xshmfence_reset (fence->fence);
+	/* Reset the fence.  */
+	xshmfence_reset(fence->fence);
 }
 
 void
-FenceRelease (Fence *fence)
+FenceRelease(Fence *fence)
 {
-  if (--fence->refcount)
-    return;
+	if (--fence->refcount)
+		return;
 
-  /* Unmap the fence.  */
-  xshmfence_unmap_shm (fence->fence);
+	/* Unmap the fence.  */
+	xshmfence_unmap_shm(fence->fence);
 
-  /* Destroy the fence.  */
-  XSyncDestroyFence (compositor.display, fence->fence_id);
+	/* Destroy the fence.  */
+	XSyncDestroyFence(compositor.display, fence->fence_id);
 
-  /* Free the fence.  */
-  XLFree (fence);
+	/* Free the fence.  */
+	XLFree(fence);
 }
 
 void
-FenceRetain (Fence *fence)
+FenceRetain(Fence *fence)
 {
-  fence->refcount++;
+	fence->refcount++;
 }
 
 XSyncFence
-FenceToXFence (Fence *fence)
+FenceToXFence(Fence *fence)
 {
-  return fence->fence_id;
+	return fence->fence_id;
 }
